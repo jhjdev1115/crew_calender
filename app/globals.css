@@ -46,6 +46,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .app-frame { width: min(100%, 430px); min-height: 860px; position: relative; overflow: hidden; background: var(--surface); border: 1px solid rgba(11, 25, 49, .08); border-radius: 38px; box-shadow: 0 32px 90px rgba(18, 38, 71, .17); }
 .screen { min-height: 860px; display: flex; flex-direction: column; background: linear-gradient(180deg, #fff 0%, #fefeff 100%); }
 .screen-body { flex: 1; padding: 4px 24px 24px; }
+.loading-screen { align-items: center; justify-content: center; gap: 25px; color: var(--muted); }
+.loading-screen > strong { font-size: 14px; }
+.loading-orbit { width: 48px; height: 48px; border: 4px solid #dce9ff; border-top-color: var(--blue); border-radius: 50%; animation: orbit .8s linear infinite; }
+@keyframes orbit { to { transform: rotate(360deg); } }
 
 .logo-lockup { display: inline-flex; align-items: center; gap: 14px; }
 .logo-lockup strong { font-size: 34px; letter-spacing: -1.7px; }
@@ -162,6 +166,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .event-layover { background: linear-gradient(90deg, #45a7aa, #70c3c4); }
 .event-standby { color: #2868c9; background: linear-gradient(90deg, #d6cff2, #eee9fa); }
 .event-off { background: linear-gradient(90deg, #7fbb39, #a4d062); }
+.event-leave { background: linear-gradient(90deg, #eb9360, #f3b384); }
+.event-training { background: linear-gradient(90deg, #67748b, #909aad); }
+.more-count { color: var(--muted); font-size: 9px; line-height: 1; }
+.calendar-empty { margin: 14px 0 -6px; padding: 15px; border-radius: 13px; background: #f7f9fc; color: var(--muted); display: grid; gap: 4px; text-align: center; font-size: 12px; }
+.calendar-empty strong { color: var(--ink); font-size: 14px; }
 .fab { margin: 16px 0 2px auto; min-width: 150px; height: 56px; border: 0; border-radius: 28px; color: #fff; background: linear-gradient(135deg, var(--blue), #1d5ee0); font-weight: 800; font-size: 16px; box-shadow: 0 13px 24px rgba(20,104,239,.26); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
 .fab span { font-size: 27px; font-weight: 300; }
 
@@ -188,6 +197,15 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .partner-duty-card h3 { font-size: 21px; margin: 18px 0 8px; }
 .partner-duty-card p { color: var(--muted); margin: 0; }
 .button-outline { color: var(--blue-dark); border-color: var(--blue); background: #fff; }
+.empty-card { border: 1px dashed #cfd7e4; color: var(--muted); background: #fafbfd; border-radius: 15px; padding: 25px 18px; text-align: center; font-size: 14px; }
+.saved-duty { border: 1px solid var(--line); border-left: 5px solid var(--blue); border-radius: 15px; padding: 17px; display: grid; gap: 10px; margin-bottom: 11px; background: #fff; box-shadow: 0 8px 20px rgba(18,38,71,.04); }
+.saved-duty.off, .saved-duty.leave { border-left-color: var(--green); background: linear-gradient(135deg, #fff, #f8fcf4); }
+.saved-duty.layover { border-left-color: var(--teal); }
+.saved-duty.training { border-left-color: #7a879b; }
+.saved-duty > div { display: flex; align-items: center; justify-content: space-between; }
+.saved-duty > div button { border: 0; background: #fff1f2; color: #d92d3a; padding: 7px 10px; border-radius: 8px; font-weight: 750; cursor: pointer; }
+.saved-duty > strong { font-size: 19px; }
+.saved-duty > span, .saved-duty > small { color: var(--muted); line-height: 1.45; }
 
 .duty-body { padding-left: 20px; padding-right: 20px; }
 .duty-tabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 7px 0 24px; overflow-x: auto; padding: 2px; }
@@ -241,6 +259,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .code-divider { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 23px 0 14px; }
 .code-divider span { height: 1px; background: var(--line); }
 .code-input { text-align: center; letter-spacing: 4px; font-size: 22px; font-weight: 800; margin-bottom: 11px; }
+.centered-text { text-align: center; }
+.connected-card { border: 1px solid var(--line); border-radius: 18px; padding: 25px 18px; display: grid; justify-items: center; gap: 10px; box-shadow: 0 12px 28px rgba(18,38,71,.07); }
+.connected-card > strong { font-size: 24px; }
+.connected-card > span { color: var(--muted); }
+.connected-card > button { margin-top: 10px; min-height: 44px; border: 1px solid #fac2c6; color: #dc3440; background: #fffafa; border-radius: 11px; padding: 9px 18px; font-weight: 750; cursor: pointer; }
 
 .settings-body { padding-bottom: 26px; }
 .settings-body > h2 { font-size: 16px; margin-left: 3px; }
