@@ -101,15 +101,33 @@ async function initializeDatabase() {
       connection_id TEXT NOT NULL REFERENCES connections(id),
       created_at TEXT NOT NULL
     )`),
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_duties_user_roster ON duties(user_id, roster_month)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_duties_user_start_date ON duties(user_id, start_date)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_duties_user_start_at ON duties(user_id, start_at)"),
-    db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_invite_codes_hash ON invite_codes(code_hash)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_invite_codes_issuer_active ON invite_codes(issuer_user_id, expires_at)"),
-    db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_connections_pair ON connections(user_low_id, user_high_id)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_connections_low_status ON connections(user_low_id, status)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_connections_high_status ON connections(user_high_id, status)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_active_memberships_connection ON active_memberships(connection_id)"),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_duties_user_roster ON duties(user_id, roster_month)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_duties_user_start_date ON duties(user_id, start_date)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_duties_user_start_at ON duties(user_id, start_at)",
+    ),
+    db.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_invite_codes_hash ON invite_codes(code_hash)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_invite_codes_issuer_active ON invite_codes(issuer_user_id, expires_at)",
+    ),
+    db.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_connections_pair ON connections(user_low_id, user_high_id)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_connections_low_status ON connections(user_low_id, status)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_connections_high_status ON connections(user_high_id, status)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_active_memberships_connection ON active_memberships(connection_id)",
+    ),
   ]);
   await db.prepare("PRAGMA optimize").run();
 }

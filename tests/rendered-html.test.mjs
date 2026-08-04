@@ -12,7 +12,10 @@ test("builds the CrewSync experience and metadata", async () => {
   assert.match(layout, /og\.png/);
   assert.match(page, /서로의 일정을/);
   assert.match(page, /CrewSync 시작하기/);
-  assert.doesNotMatch(`${page}\n${layout}`, /codex-preview|react-loading-skeleton|Your site is taking shape/);
+  assert.doesNotMatch(
+    `${page}\n${layout}`,
+    /codex-preview|react-loading-skeleton|Your site is taking shape/,
+  );
 });
 
 test("ships the finished app without starter preview dependencies", async () => {
@@ -29,7 +32,9 @@ test("ships the finished app without starter preview dependencies", async () => 
   assert.match(page, /\/api\/profile/);
   assert.match(layout, /CrewSync/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
-  await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
+  await assert.rejects(
+    access(new URL("../app/_sites-preview", import.meta.url)),
+  );
   await access(new URL("../public/og.png", import.meta.url));
   await access(new URL("../drizzle/0000_calm_zeigeist.sql", import.meta.url));
 });
