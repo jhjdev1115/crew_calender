@@ -82,3 +82,16 @@ test("requires real sign-in and keeps shared schedules automatically synchronize
   assert.match(page, /window\.addEventListener\("focus"/);
   assert.match(page, /loadPartner\(\{ silent: true \}\)/);
 });
+
+test("fits the full calendar into the mobile viewport with compact flight labels", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /function calendarDutyLabel/);
+  assert.match(page, /duty\.type === "flight" \? dutyLabels\.flight/);
+  assert.match(styles, /\.calendar-screen \{\s*height: 100svh/);
+  assert.match(styles, /grid-template-rows: repeat\(6, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.calendar-screen > \.bottom-nav \{\s*height: 62px/);
+});

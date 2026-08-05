@@ -187,6 +187,9 @@ function dutyLabel(duty: Duty) {
   if (duty.type === "layover") return `체류 ${duty.layover_city ?? ""}`.trim();
   return dutyLabels[duty.type];
 }
+function calendarDutyLabel(duty: Duty) {
+  return duty.type === "flight" ? dutyLabels.flight : dutyLabel(duty);
+}
 function formatShortDateTime(value: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -653,7 +656,7 @@ function CalendarHome({
                     key={`${event.id}-${key}`}
                   >
                     {event.source === "partner" ? "♡ " : ""}
-                    {dutyLabel(event)}
+                    {calendarDutyLabel(event)}
                   </em>
                 ))}
                 {events.length > 2 && (
