@@ -57,6 +57,12 @@ test("ships AI roster PDF analysis and bulk import", async () => {
   assert.match(importRoute, /date-only/);
   assert.match(importRoute, /incomplete/);
   assert.match(page, /시작 정보 없음/);
+  const analyzeRoute = await readFile(
+    new URL("../app/api/roster/analyze/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(analyzeRoute, /Do not create layover items/);
+  assert.doesNotMatch(analyzeRoute, /"layover",/);
   assert.match(dutiesRoute, /COALESCE\(end_date, start_date\)/);
   assert.match(dutiesRoute, /COALESCE\(substr\(end_at/);
   await access(new URL("../app/api/roster/analyze/route.ts", import.meta.url));

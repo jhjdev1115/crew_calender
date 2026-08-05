@@ -1020,7 +1020,7 @@ function QuickEntry({
           <span>✦</span>
           <span>
             <strong>AI 로스터 PDF 분석</strong>
-            <small>비행·휴무·체류·교육 일정을 한 번에 가져오기</small>
+            <small>비행·휴무·대기·교육 일정을 한 번에 가져오기</small>
           </span>
           <b>›</b>
         </button>
@@ -1211,7 +1211,7 @@ function RosterImport({
       <section className="screen-body roster-body">
         <div className="page-intro">
           <h1>로스터 PDF를 일정으로 바꿔드려요</h1>
-          <p>비행·휴무·체류·교육과 공항별 현지 시각을 자동으로 정리해요</p>
+          <p>비행·휴무·대기·교육과 공항별 현지 시각을 자동으로 정리해요</p>
         </div>
         <label
           className={`roster-dropzone ${dragging ? "dragging" : ""} ${file ? "has-file" : ""}`}

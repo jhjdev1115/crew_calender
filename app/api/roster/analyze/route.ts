@@ -6,7 +6,6 @@ const rosterTypes = new Set([
   "flight",
   "standby",
   "off",
-  "layover",
   "training",
   "leave",
 ]);
@@ -41,7 +40,6 @@ const rosterSchema = {
               "flight",
               "standby",
               "off",
-              "layover",
               "training",
               "leave",
             ],
@@ -100,8 +98,8 @@ Extraction rules:
 2. Create flight items for every operated flight leg. Capture flight number, origin, destination, aircraft code, scheduled departure, and scheduled arrival. RPT is reporting time, not the flight departure time.
 3. This Qatar-style report states that all duty times are UTC except OFF and Leave. Use the UTC DIFFERENCE table in the PDF to convert each flight departure to origin-airport local time and each arrival to destination-airport local time. Apply (+1) or previous-day markers before conversion. Put converted local values in startAt and endAt. Mention source UTC times briefly in note when useful.
 4. Map OFF and DOFF to off; LVE to leave; training codes such as FAID, RECI, REC, SEC, DGCS, door training, CRM, and ground training to training. Map standby/availability duties to standby. Keep the original code in sourceCode and explain unfamiliar codes in note.
-5. Use hotel details only to create meaningful layover items. Store only city/station and hotel name. Never include phone numbers or addresses. Avoid duplicate layovers for repeated contact rows.
-6. For all-day off/leave items, set startDate and endDate and leave startAt/endAt empty. For timed flight, training, standby, and layover items, use startAt/endAt and leave startDate/endDate empty.
+5. Do not create layover items. Ignore hotel, accommodation, layover, station-contact, phone, and address details entirely, even when a hotel section is present.
+6. For all-day off/leave items, set startDate and endDate and leave startAt/endAt empty. For timed flight, training, and standby items, use startAt/endAt and leave startDate/endDate empty.
 7. Use ISO local date/time strings exactly as YYYY-MM-DDTHH:mm. De-duplicate repeated rows and sort items chronologically.
 8. Confidence must be between 0 and 1. Use lower confidence where a narrow column, page break, or ambiguous code prevents certainty. Do not invent missing flight numbers or times.
 9. Write summary and timezoneNote in concise Korean.
