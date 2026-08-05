@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { airportLocalDateTimeToDate } from "./airport-timezones";
 
 type Screen =
   | "onboarding"
@@ -191,10 +192,17 @@ function calendarDutyLabel(duty: Duty) {
   return duty.type === "flight" ? dutyLabels.flight : dutyLabel(duty);
 }
 function flightDurationMinutes(duty: Duty) {
-  if (!duty.start_at || !duty.end_at) return 0;
-  const start = new Date(duty.start_at).getTime();
-  const end = new Date(duty.end_at).getTime();
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+  const start = airportLocalDateTimeToDate(
+    duty.start_at,
+    duty.dep_airport,
+    duty.event_tz,
+  )?.getTime();
+  const end = airportLocalDateTimeToDate(
+    duty.end_at,
+    duty.arr_airport,
+    duty.event_tz,
+  )?.getTime();
+  if (start === undefined || end === undefined || end <= start) return 0;
   return Math.round((end - start) / 60_000);
 }
 function formatFlightMinutes(minutes: number) {
@@ -209,10 +217,13 @@ function formatShortDateTime(value: string | null) {
   if (Number.isNaN(date.getTime())) return value.replace("T", " ");
   return `${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours() < 12 ? "오전" : "오후"} ${date.getHours() % 12 || 12}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
-function formatKoreanTime(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+function formatKoreanTime(
+  value: string | null,
+  airport: string | null | undefined,
+  fallbackTimeZone?: string | null,
+) {
+  const date = airportLocalDateTimeToDate(value, airport, fallbackTimeZone);
+  if (!date) return "";
   return new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
     month: "numeric",
@@ -223,8 +234,16 @@ function formatKoreanTime(value: string | null) {
   }).format(date);
 }
 function formatKoreanFlightRange(duty: Duty) {
-  const start = formatKoreanTime(duty.start_at);
-  const end = formatKoreanTime(duty.end_at);
+  const start = formatKoreanTime(
+    duty.start_at,
+    duty.dep_airport,
+    duty.event_tz,
+  );
+  const end = formatKoreanTime(
+    duty.end_at,
+    duty.arr_airport,
+    duty.event_tz,
+  );
   if (!start) return "";
   return end ? `${start} → ${end}` : start;
 }

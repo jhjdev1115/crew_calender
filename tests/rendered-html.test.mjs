@@ -112,9 +112,10 @@ test("highlights today and reports completed monthly flight time", async () => {
 });
 
 test("keeps today's typography unchanged and adds Korean flight time", async () => {
-  const [page, styles] = await Promise.all([
+  const [page, styles, airportTimes] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/airport-timezones.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /timeZone: "Asia\/Seoul"/);
@@ -122,4 +123,8 @@ test("keeps today's typography unchanged and adds Korean flight time", async () 
   assert.match(page, /formatKoreanFlightRange/);
   assert.match(styles, /\.saved-duty > \.korea-time/);
   assert.doesNotMatch(styles, /\.day-cell\.today > span:first-child/);
+  assert.match(airportTimes, /DOH: "Asia\/Qatar"/);
+  assert.match(airportTimes, /ICN: "Asia\/Seoul"/);
+  assert.match(airportTimes, /timeZoneOffsetMs/);
+  assert.match(page, /airportLocalDateTimeToDate/);
 });

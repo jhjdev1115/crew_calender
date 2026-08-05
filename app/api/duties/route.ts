@@ -144,7 +144,7 @@ export async function POST(request: Request) {
         endDate,
         startAt,
         endAt,
-        body.eventTz ?? profile.schedule_tz,
+        type === "flight" ? "airport-local" : (body.eventTz ?? profile.schedule_tz),
         body.flightNo?.trim().toUpperCase() || null,
         body.depAirport?.trim().toUpperCase() || null,
         body.arrAirport?.trim().toUpperCase() || null,
