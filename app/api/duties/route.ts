@@ -40,8 +40,8 @@ export async function GET(request: Request) {
     const result = await context.db
       .prepare(
         `SELECT * FROM duties WHERE user_id = ? AND deleted_at IS NULL AND (
-      (start_date IS NOT NULL AND start_date <= ? AND end_date >= ?) OR
-      (start_at IS NOT NULL AND substr(start_at, 1, 10) <= ? AND substr(end_at, 1, 10) >= ?)
+      (start_date IS NOT NULL AND start_date <= ? AND COALESCE(end_date, start_date) >= ?) OR
+      (start_at IS NOT NULL AND substr(start_at, 1, 10) <= ? AND COALESCE(substr(end_at, 1, 10), substr(start_at, 1, 10)) >= ?)
     ) ORDER BY COALESCE(start_date, start_at), created_at`,
       )
       .bind(

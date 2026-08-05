@@ -110,21 +110,20 @@ export async function POST(request: Request) {
         throw new Error(`${index + 1}번째 일정 유형을 확인해주세요.`);
       const isAllDay = allDay.has(type);
       const startDate = isAllDay ? clean(item.startDate, 10) : "";
-      const endDate = isAllDay
-        ? clean(item.endDate || item.startDate, 10)
-        : "";
+      const endDate = isAllDay ? clean(item.endDate, 10) : "";
       const startAt = isAllDay ? "" : clean(item.startAt, 16);
       const endAt = isAllDay ? "" : clean(item.endAt, 16);
       if (
         isAllDay &&
         (!datePattern.test(startDate) ||
-          !datePattern.test(endDate) ||
-          startDate > endDate)
+          (endDate !== "" &&
+            (!datePattern.test(endDate) || startDate > endDate)))
       )
         throw new Error(`${index + 1}번째 일정 날짜를 확인해주세요.`);
       if (
         !isAllDay &&
-        (!dateTimePattern.test(startAt) || !dateTimePattern.test(endAt))
+        (!dateTimePattern.test(startAt) ||
+          (endAt !== "" && !dateTimePattern.test(endAt)))
       )
         throw new Error(`${index + 1}번째 일정 시각을 확인해주세요.`);
       const flightNo = clean(item.flightNo, 20).toUpperCase();

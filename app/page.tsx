@@ -157,6 +157,11 @@ function dutyStart(duty: Duty) {
 function dutyEnd(duty: Duty) {
   return duty.end_date ?? duty.end_at?.slice(0, 10) ?? dutyStart(duty);
 }
+function formatDutyRange(duty: Duty) {
+  const start = duty.start_date ?? formatShortDateTime(duty.start_at);
+  const end = duty.end_date ?? formatShortDateTime(duty.end_at);
+  return end ? `${start} - ${end}` : start;
+}
 function dutiesOnDate(duties: Duty[], date: string) {
   return duties.filter(
     (duty) => dutyStart(duty) <= date && dutyEnd(duty) >= date,
@@ -688,9 +693,7 @@ function DayDetail({
       </div>
       <strong>{dutyLabel(duty)}</strong>
       <span>
-        {duty.start_date
-          ? `${duty.start_date} - ${duty.end_date}`
-          : `${formatShortDateTime(duty.start_at)} - ${formatShortDateTime(duty.end_at)}`}
+        {formatDutyRange(duty)}
       </span>
       {own && duty.note && <small>{duty.note}</small>}
     </article>
@@ -1326,8 +1329,12 @@ function RosterImport({
                           </strong>
                           <small>
                             {isAllDay
-                              ? `${item.startDate} - ${item.endDate}`
-                              : `${item.startAt?.replace("T", " ")} - ${item.endAt?.replace("T", " ")}`}
+                              ? item.endDate
+                                ? `${item.startDate} - ${item.endDate}`
+                                : item.startDate
+                              : item.endAt
+                                ? `${item.startAt?.replace("T", " ")} - ${item.endAt.replace("T", " ")}`
+                                : item.startAt?.replace("T", " ")}
                           </small>
                         </span>
                       </label>

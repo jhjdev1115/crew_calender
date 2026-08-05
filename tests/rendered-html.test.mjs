@@ -43,15 +43,20 @@ test("ships the finished app without starter preview dependencies", async () => 
 });
 
 test("ships AI roster PDF analysis and bulk import", async () => {
-  const page = await readFile(
-    new URL("../app/page.tsx", import.meta.url),
-    "utf8",
-  );
+  const [page, importRoute, dutiesRoute] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/roster/import/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/duties/route.ts", import.meta.url), "utf8"),
+  ]);
 
   assert.match(page, /AI 로스터 분석/);
   assert.match(page, /\/api\/roster\/analyze/);
   assert.match(page, /\/api\/roster\/import/);
   assert.match(page, /공항별 현지 시각/);
+  assert.match(importRoute, /endDate !== ""/);
+  assert.match(importRoute, /endAt !== ""/);
+  assert.match(dutiesRoute, /COALESCE\(end_date, start_date\)/);
+  assert.match(dutiesRoute, /COALESCE\(substr\(end_at/);
   await access(new URL("../app/api/roster/analyze/route.ts", import.meta.url));
   await access(new URL("../app/api/roster/import/route.ts", import.meta.url));
 });
