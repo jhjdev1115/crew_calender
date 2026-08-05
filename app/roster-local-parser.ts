@@ -10,10 +10,20 @@ export type { LocalRosterAnalysis } from "./roster-token-parser";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
+function wipeBytes(bytes: Uint8Array) {
+  try {
+    // PDF.js transfers this buffer to its worker and may detach it. Detached
+    // typed arrays are already unavailable to this page and cannot be filled.
+    if (bytes.byteLength > 0 && bytes.buffer.byteLength > 0) bytes.fill(0);
+  } catch {
+    // Treat an already-detached buffer as successfully released.
+  }
+}
+
 export async function analyzeRosterPdfLocally(file: File): Promise<LocalRosterAnalysis> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (new TextDecoder("latin1").decode(bytes.slice(0, 5)) !== "%PDF-") {
-    bytes.fill(0);
+    wipeBytes(bytes);
     throw new Error("올바른 PDF 파일인지 확인해주세요.");
   }
 
@@ -39,7 +49,10 @@ export async function analyzeRosterPdfLocally(file: File): Promise<LocalRosterAn
     return analyzeRosterTokens(tokens);
   } finally {
     tokens.length = 0;
-    bytes.fill(0);
-    await task.destroy();
+    try {
+      await task.destroy();
+    } finally {
+      wipeBytes(bytes);
+    }
   }
 }
