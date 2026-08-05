@@ -25,6 +25,7 @@ const allowed = new Set([
   "leave",
 ]);
 const allDay = new Set(["off", "leave"]);
+const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
 export async function GET(request: Request) {
   try {
@@ -99,7 +100,11 @@ export async function POST(request: Request) {
       );
     if (
       !isAllDay &&
-      (!startAt || !endAt || new Date(endAt) <= new Date(startAt))
+      (!startAt ||
+        !endAt ||
+        !localDateTime.test(startAt) ||
+        !localDateTime.test(endAt) ||
+        (type !== "flight" && new Date(endAt) <= new Date(startAt)))
     )
       return Response.json(
         { error: "시작·종료 시각을 확인해주세요." },

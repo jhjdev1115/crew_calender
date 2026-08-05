@@ -739,6 +739,8 @@ function DutyForm({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const allDay = type === "off" || type === "leave";
+  const departureBasis = /^[A-Z]{3}$/.test(dep) ? dep : "출발 공항";
+  const arrivalBasis = /^[A-Z]{3}$/.test(arr) ? arr : "도착 공항";
   const submit = async (again: boolean) => {
     setSaving(true);
     try {
@@ -805,24 +807,6 @@ function DutyForm({
           </div>
         ) : (
           <>
-            <div className="date-pair">
-              <label className="field-label">
-                시작 시각
-                <input
-                  type="datetime-local"
-                  value={startAt}
-                  onChange={(e) => setStartAt(e.target.value)}
-                />
-              </label>
-              <label className="field-label">
-                종료 시각
-                <input
-                  type="datetime-local"
-                  value={endAt}
-                  onChange={(e) => setEndAt(e.target.value)}
-                />
-              </label>
-            </div>
             {type === "flight" && (
               <>
                 <label className="field-label">
@@ -852,6 +836,35 @@ function DutyForm({
                     />
                   </label>
                 </div>
+                <div className="date-pair airport-time-pair">
+                  <label className="field-label">
+                    <span className="time-label-line">
+                      출발 시각
+                      <b>{departureBasis} 기준</b>
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={startAt}
+                      aria-label={`${departureBasis} 기준 출발 시각`}
+                      onChange={(e) => setStartAt(e.target.value)}
+                    />
+                  </label>
+                  <label className="field-label">
+                    <span className="time-label-line">
+                      도착 시각
+                      <b>{arrivalBasis} 기준</b>
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={endAt}
+                      aria-label={`${arrivalBasis} 기준 도착 시각`}
+                      onChange={(e) => setEndAt(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <p className="airport-time-note">
+                  ◷ 출발과 도착 시각은 각 공항의 현지 시각으로 저장돼요
+                </p>
                 <label className="field-label">
                   기종
                   <input
@@ -861,6 +874,26 @@ function DutyForm({
                   />
                 </label>
               </>
+            )}
+            {type !== "flight" && (
+              <div className="date-pair">
+                <label className="field-label">
+                  시작 시각
+                  <input
+                    type="datetime-local"
+                    value={startAt}
+                    onChange={(e) => setStartAt(e.target.value)}
+                  />
+                </label>
+                <label className="field-label">
+                  종료 시각
+                  <input
+                    type="datetime-local"
+                    value={endAt}
+                    onChange={(e) => setEndAt(e.target.value)}
+                  />
+                </label>
+              </div>
             )}
             {type === "layover" && (
               <>

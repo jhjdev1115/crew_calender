@@ -30,6 +30,9 @@ test("ships the finished app without starter preview dependencies", async () => 
   assert.match(page, /AccountDelete/);
   assert.match(page, /\/api\/duties/);
   assert.match(page, /\/api\/profile/);
+  assert.match(page, /출발 시각/);
+  assert.match(page, /도착 시각/);
+  assert.match(page, /각 공항의 현지 시각으로 저장돼요/);
   assert.match(layout, /CrewSync/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(
