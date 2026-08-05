@@ -2,7 +2,11 @@ import { env } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
 
-type RuntimeEnv = { DB?: D1Database; INVITE_PEPPER?: string };
+type RuntimeEnv = {
+  DB?: D1Database;
+  INVITE_PEPPER?: string;
+  OPENAI_API_KEY?: string;
+};
 
 export function getD1(): D1Database {
   const db = (env as unknown as RuntimeEnv).DB;
@@ -16,6 +20,14 @@ export function getDb() {
 
 export function getInvitePepper(): string | null {
   return (env as unknown as RuntimeEnv).INVITE_PEPPER ?? null;
+}
+
+export function getOpenAIApiKey(): string | null {
+  return (
+    (env as unknown as RuntimeEnv).OPENAI_API_KEY ??
+    (typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined) ??
+    null
+  );
 }
 
 let initialized: Promise<void> | null = null;

@@ -1213,6 +1213,16 @@ button:disabled {
 .quick-card.primary strong {
   color: var(--blue);
 }
+.quick-card.ai {
+  border-color: #c6d0ff;
+  background: linear-gradient(135deg, #f8f9ff, #eef1ff);
+  box-shadow: 0 10px 25px rgba(78, 72, 210, 0.08);
+}
+.quick-card.ai > span:first-child,
+.quick-card.ai strong,
+.quick-card.ai > b {
+  color: #5650d9;
+}
 .quick-card.danger {
   border-color: #fac6c9;
   background: #fffafa;
@@ -1246,6 +1256,333 @@ button:disabled {
   border-radius: 9px;
   padding: 8px 12px;
   font-weight: 700;
+}
+
+.ai-roster-banner {
+  width: 100%;
+  margin-top: 11px;
+  padding: 13px 14px;
+  border: 1px solid #ccd5ff;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #fafbff, #eef1ff);
+  display: grid;
+  grid-template-columns: 42px 1fr 18px;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.ai-roster-banner > span:first-child {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(145deg, #625bea, #3c75f2);
+  font-size: 21px;
+  box-shadow: 0 8px 18px rgba(76, 88, 218, 0.22);
+}
+.ai-roster-banner > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.ai-roster-banner strong {
+  font-size: 14px;
+}
+.ai-roster-banner small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-roster-banner > b {
+  color: #625bea;
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.roster-body {
+  padding-bottom: 118px;
+}
+.roster-body .page-intro {
+  margin-bottom: 22px;
+}
+.roster-dropzone {
+  min-height: 155px;
+  padding: 25px 18px;
+  border: 2px dashed #bcc8e4;
+  border-radius: 18px;
+  background: #fafbfe;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 7px;
+  text-align: center;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+.roster-dropzone.dragging,
+.roster-dropzone.has-file {
+  border-color: #625bea;
+  background: #f4f4ff;
+}
+.roster-dropzone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.roster-dropzone > span {
+  min-width: 48px;
+  min-height: 38px;
+  padding: 8px 11px;
+  border-radius: 11px;
+  color: #fff;
+  background: linear-gradient(145deg, #625bea, #3c75f2);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 900;
+}
+.roster-dropzone strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.roster-dropzone small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.roster-privacy {
+  margin: 12px 0 15px;
+  padding: 12px 13px;
+  border-radius: 12px;
+  color: #53627a;
+  background: #f4f7fc;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.roster-privacy > span {
+  color: #625bea;
+  font-weight: 900;
+}
+.roster-privacy p,
+.roster-error {
+  margin: 0;
+}
+.roster-error {
+  margin: 0 0 12px;
+  padding: 11px 13px;
+  border: 1px solid #ffc8cc;
+  border-radius: 11px;
+  color: #c72f3a;
+  background: #fff7f8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.roster-analyze-button {
+  width: 100%;
+}
+.roster-progress {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #d7def7;
+  border-radius: 14px;
+  background: #fafbff;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #dce4fb;
+  border-top-color: #625bea;
+  border-radius: 50%;
+  animation: orbit 0.8s linear infinite;
+}
+.roster-progress > span:last-child {
+  display: grid;
+  gap: 4px;
+}
+.roster-progress strong {
+  font-size: 14px;
+}
+.roster-progress small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.roster-summary {
+  margin-top: 17px;
+  padding: 18px;
+  border: 1px solid #cbd6ff;
+  border-radius: 17px;
+  background: linear-gradient(145deg, #f9faff, #eef2ff);
+}
+.roster-summary > span {
+  color: #5650d9;
+  font-size: 12px;
+  font-weight: 850;
+}
+.roster-summary h2 {
+  margin: 8px 0 5px;
+  font-size: 18px;
+  line-height: 1.45;
+}
+.roster-summary p {
+  margin: 0 0 6px;
+  color: #45516b;
+  font-size: 14px;
+}
+.roster-summary > small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.roster-summary > div {
+  margin-top: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.roster-summary em {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #42506a;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #d7def3;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 750;
+}
+.roster-list-heading {
+  margin: 24px 1px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.roster-list-heading > span {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.roster-list-heading strong {
+  font-size: 18px;
+}
+.roster-list-heading small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.roster-list-heading button,
+.roster-item-head > button {
+  border: 0;
+  color: var(--blue);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.roster-items {
+  display: grid;
+  gap: 10px;
+}
+.roster-item {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #fff;
+}
+.roster-item.selected {
+  border-color: #bfcaff;
+  box-shadow: 0 7px 19px rgba(64, 80, 180, 0.07);
+}
+.roster-item-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+.roster-item-head > label {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 9px;
+  align-items: start;
+  cursor: pointer;
+}
+.roster-item-head input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: #625bea;
+}
+.roster-item-head label > span {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.roster-item-head strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.roster-item-head small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.roster-item-meta {
+  margin: 10px 0 0 29px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.roster-item-meta span {
+  padding: 4px 7px;
+  border-radius: 7px;
+  color: #526078;
+  background: #f3f6fa;
+  font-size: 10px;
+  font-weight: 750;
+}
+.roster-item-meta span.low {
+  color: #a96312;
+  background: #fff4df;
+}
+.roster-item > p {
+  margin: 10px 0 0 29px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.roster-editor {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.roster-editor .field-label {
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.roster-editor .field-label input,
+.roster-editor .select-field {
+  min-height: 46px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 .link-body {
@@ -1739,6 +2076,13 @@ button:disabled {
   .airport-time-pair {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+  .roster-editor .date-pair {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .ai-roster-banner small {
+    white-space: normal;
   }
 }
 

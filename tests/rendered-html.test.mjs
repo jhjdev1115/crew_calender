@@ -41,3 +41,17 @@ test("ships the finished app without starter preview dependencies", async () => 
   await access(new URL("../public/og.png", import.meta.url));
   await access(new URL("../drizzle/0000_calm_zeigeist.sql", import.meta.url));
 });
+
+test("ships AI roster PDF analysis and bulk import", async () => {
+  const page = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(page, /AI 로스터 분석/);
+  assert.match(page, /\/api\/roster\/analyze/);
+  assert.match(page, /\/api\/roster\/import/);
+  assert.match(page, /공항별 현지 시각/);
+  await access(new URL("../app/api/roster/analyze/route.ts", import.meta.url));
+  await access(new URL("../app/api/roster/import/route.ts", import.meta.url));
+});

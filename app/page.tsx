@@ -16,6 +16,7 @@ type Screen =
   | "day"
   | "duty"
   | "quick"
+  | "roster"
   | "link"
   | "notifications"
   | "settings"
@@ -80,6 +81,18 @@ type DutyPayload = {
   hotelName?: string;
   note?: string;
 };
+type RosterItem = DutyPayload & {
+  id: string;
+  sourceCode: string;
+  confidence: number;
+};
+type RosterAnalysis = {
+  summary: string;
+  periodStart: string;
+  periodEnd: string;
+  timezoneNote: string;
+  items: RosterItem[];
+};
 
 const dutyLabels: Record<DutyType, string> = {
   flight: "비행",
@@ -129,11 +142,6 @@ function todayKey() {
 }
 function monthKey(date = new Date()) {
   return dateKey(date).slice(0, 7);
-}
-function addDays(value: string, days: number) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  return dateKey(date);
 }
 function formatMonth(value: string) {
   const [y, m] = value.split("-").map(Number);
@@ -489,16 +497,19 @@ function CalendarHome({
       };
     });
   }, [month]);
-  const allDuties =
-    role === "partner"
-      ? [
-          ...duties,
-          ...partner.partnerDuties.map((d) => ({
-            ...d,
-            source: "partner" as const,
-          })),
-        ]
-      : duties;
+  const allDuties = useMemo(
+    () =>
+      role === "partner"
+        ? [
+            ...duties,
+            ...partner.partnerDuties.map((d) => ({
+              ...d,
+              source: "partner" as const,
+            })),
+          ]
+        : duties,
+    [duties, partner.partnerDuties, role],
+  );
   const byDate = useMemo(() => {
     const map = new Map<string, Duty[]>();
     for (const cell of cells)
@@ -546,6 +557,16 @@ function CalendarHome({
               파트너를 연동해 <b>같은 날짜 휴무</b>를 확인하세요
             </strong>
             <span>›</span>
+          </button>
+        )}
+        {role === "crew" && (
+          <button className="ai-roster-banner" onClick={() => go("roster")}>
+            <span>✦</span>
+            <span>
+              <strong>AI로 로스터 PDF 등록</strong>
+              <small>PDF를 올리면 일정과 현지 시각을 자동으로 정리해요</small>
+            </span>
+            <b>›</b>
           </button>
         )}
         <div className="month-toolbar">
@@ -959,12 +980,14 @@ function QuickEntry({
   duties,
   back,
   create,
+  roster,
   reset,
 }: {
   month: string;
   duties: Duty[];
   back: () => void;
   create: () => void;
+  roster: () => void;
   reset: () => Promise<void>;
 }) {
   const [working, setWorking] = useState(false);
@@ -990,6 +1013,14 @@ function QuickEntry({
           <h1>이번 달 일정을 빠르게 등록하세요</h1>
           <p>자주 쓰는 방법을 선택하면 입력 시간을 줄일 수 있어요</p>
         </div>
+        <button className="quick-card ai" onClick={roster}>
+          <span>✦</span>
+          <span>
+            <strong>AI 로스터 PDF 분석</strong>
+            <small>비행·휴무·체류·교육 일정을 한 번에 가져오기</small>
+          </span>
+          <b>›</b>
+        </button>
         {[
           ["▱", "계속 등록", "저장 후 화면을 닫지 않고 다음 일정 입력"],
           ["▤", "기존 일정 복제", "최근 일정의 값을 참고해 새 일정 추가"],
@@ -1045,6 +1076,431 @@ function QuickEntry({
           새 일정 계속 등록
         </button>
       </div>
+    </main>
+  );
+}
+
+function RosterImport({
+  back,
+  importItems,
+}: {
+  back: () => void;
+  importItems: (items: RosterItem[]) => Promise<void>;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [analysis, setAnalysis] = useState<RosterAnalysis | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState("");
+
+  const chooseFile = (next: File | null) => {
+    setError("");
+    setAnalysis(null);
+    setSelected(new Set());
+    if (!next) {
+      setFile(null);
+      return;
+    }
+    if (
+      next.type !== "application/pdf" &&
+      !next.name.toLowerCase().endsWith(".pdf")
+    ) {
+      setFile(null);
+      setError("PDF 파일만 선택할 수 있어요.");
+      return;
+    }
+    if (next.size > 12 * 1024 * 1024) {
+      setFile(null);
+      setError("PDF 크기는 12MB 이하여야 해요.");
+      return;
+    }
+    setFile(next);
+  };
+
+  const analyze = async () => {
+    if (!file || analyzing) return;
+    setAnalyzing(true);
+    setError("");
+    try {
+      const fileData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(new Error("PDF 파일을 읽지 못했어요."));
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch("/api/roster/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, fileData }),
+      });
+      const data = (await response.json()) as {
+        analysis?: RosterAnalysis;
+        error?: string;
+      };
+      if (!response.ok || !data.analysis)
+        throw new Error(data.error || "PDF를 분석하지 못했어요.");
+      setAnalysis(data.analysis);
+      setSelected(new Set(data.analysis.items.map((item) => item.id)));
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "PDF를 분석하지 못했어요.",
+      );
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const updateItem = (id: string, patch: Partial<RosterItem>) => {
+    setAnalysis((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((item) =>
+              item.id === id ? { ...item, ...patch } : item,
+            ),
+          }
+        : current,
+    );
+  };
+
+  const toggleItem = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const submitImport = async () => {
+    if (!analysis || importing) return;
+    const chosen = analysis.items.filter((item) => selected.has(item.id));
+    if (chosen.length === 0) {
+      setError("등록할 일정을 한 개 이상 선택해주세요.");
+      return;
+    }
+    setImporting(true);
+    setError("");
+    try {
+      await importItems(chosen);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "일정을 등록하지 못했어요.",
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const counts = analysis
+    ? analysis.items.reduce<Record<string, number>>((acc, item) => {
+        acc[item.type] = (acc[item.type] ?? 0) + 1;
+        return acc;
+      }, {})
+    : {};
+
+  return (
+    <main className="screen form-screen roster-screen">
+      <TopBar title="AI 로스터 분석" onBack={back} />
+      <section className="screen-body roster-body">
+        <div className="page-intro">
+          <h1>로스터 PDF를 일정으로 바꿔드려요</h1>
+          <p>비행·휴무·체류·교육과 공항별 현지 시각을 자동으로 정리해요</p>
+        </div>
+        <label
+          className={`roster-dropzone ${dragging ? "dragging" : ""} ${file ? "has-file" : ""}`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragging(false);
+            chooseFile(event.dataTransfer.files[0] ?? null);
+          }}
+        >
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
+          />
+          <span>{file ? "✓" : "PDF"}</span>
+          <strong>{file ? file.name : "PDF를 선택하거나 여기에 놓으세요"}</strong>
+          <small>
+            {file
+              ? `${(file.size / 1024).toFixed(0)}KB · 분석 준비 완료`
+              : "최대 12MB · 항공사 로스터 PDF"}
+          </small>
+        </label>
+        <div className="roster-privacy">
+          <span>▣</span>
+          <p>
+            PDF는 AI 분석을 위해 OpenAI로 전송되며 CrewSync 데이터베이스에는
+            원본 파일을 저장하지 않아요. 이름과 사번은 일정에 등록하지 않습니다.
+          </p>
+        </div>
+        {error && <p className="roster-error">{error}</p>}
+        <button
+          className="button button-primary roster-analyze-button"
+          disabled={!file || analyzing}
+          onClick={analyze}
+        >
+          {analyzing ? "AI가 로스터를 분석하는 중…" : "✦ AI 분석 시작"}
+        </button>
+        {analyzing && (
+          <div className="roster-progress" role="status">
+            <span className="loading-spinner" />
+            <span>
+              <strong>표의 날짜와 열을 읽고 있어요</strong>
+              <small>복잡한 로스터는 약 1분 정도 걸릴 수 있어요.</small>
+            </span>
+          </div>
+        )}
+
+        {analysis && !analyzing && (
+          <>
+            <section className="roster-summary">
+              <span>✦ 분석 완료</span>
+              <h2>{analysis.summary}</h2>
+              <p>
+                {analysis.periodStart} - {analysis.periodEnd}
+              </p>
+              <small>{analysis.timezoneNote}</small>
+              <div>
+                {Object.entries(counts).map(([type, count]) => (
+                  <em key={type}>
+                    {dutyLabels[type as DutyType]} {count}
+                  </em>
+                ))}
+              </div>
+            </section>
+            <div className="roster-list-heading">
+              <span>
+                <strong>등록할 일정</strong>
+                <small>
+                  {selected.size}/{analysis.items.length}개 선택
+                </small>
+              </span>
+              <button
+                onClick={() =>
+                  setSelected(
+                    selected.size === analysis.items.length
+                      ? new Set()
+                      : new Set(analysis.items.map((item) => item.id)),
+                  )
+                }
+              >
+                {selected.size === analysis.items.length ? "전체 해제" : "전체 선택"}
+              </button>
+            </div>
+            <div className="roster-items">
+              {analysis.items.map((item) => {
+                const isAllDay = item.type === "off" || item.type === "leave";
+                const isEditing = editing === item.id;
+                const confidence = Math.max(
+                  0,
+                  Math.min(100, Math.round(Number(item.confidence || 0) * 100)),
+                );
+                return (
+                  <article
+                    className={`roster-item ${selected.has(item.id) ? "selected" : ""}`}
+                    key={item.id}
+                  >
+                    <div className="roster-item-head">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(item.id)}
+                          onChange={() => toggleItem(item.id)}
+                        />
+                        <span>
+                          <strong>
+                            {dutyLabels[item.type]}
+                            {item.type === "flight" &&
+                              ` ${item.depAirport || "출발"} → ${item.arrAirport || "도착"}`}
+                            {item.type === "layover" && ` ${item.layoverCity}`}
+                          </strong>
+                          <small>
+                            {isAllDay
+                              ? `${item.startDate} - ${item.endDate}`
+                              : `${item.startAt?.replace("T", " ")} - ${item.endAt?.replace("T", " ")}`}
+                          </small>
+                        </span>
+                      </label>
+                      <button onClick={() => setEditing(isEditing ? null : item.id)}>
+                        {isEditing ? "닫기" : "수정"}
+                      </button>
+                    </div>
+                    <div className="roster-item-meta">
+                      <span>{item.sourceCode || "코드 없음"}</span>
+                      <span className={confidence < 75 ? "low" : ""}>
+                        신뢰도 {confidence}%
+                      </span>
+                    </div>
+                    {item.note && <p>{item.note}</p>}
+                    {isEditing && (
+                      <div className="roster-editor">
+                        <label className="field-label">
+                          일정 유형
+                          <select
+                            className="select-field"
+                            value={item.type}
+                            onChange={(event) =>
+                              updateItem(item.id, {
+                                type: event.target.value as DutyType,
+                              })
+                            }
+                          >
+                            {Object.entries(dutyLabels).map(([value, label]) => (
+                              <option value={value} key={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {isAllDay ? (
+                          <div className="date-pair">
+                            <label className="field-label">
+                              시작일
+                              <input
+                                type="date"
+                                value={item.startDate ?? ""}
+                                onChange={(event) =>
+                                  updateItem(item.id, { startDate: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="field-label">
+                              종료일
+                              <input
+                                type="date"
+                                value={item.endDate ?? ""}
+                                onChange={(event) =>
+                                  updateItem(item.id, { endDate: event.target.value })
+                                }
+                              />
+                            </label>
+                          </div>
+                        ) : (
+                          <div className="date-pair">
+                            <label className="field-label">
+                              시작 시각
+                              <input
+                                type="datetime-local"
+                                value={item.startAt ?? ""}
+                                onChange={(event) =>
+                                  updateItem(item.id, { startAt: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="field-label">
+                              종료 시각
+                              <input
+                                type="datetime-local"
+                                value={item.endAt ?? ""}
+                                onChange={(event) =>
+                                  updateItem(item.id, { endAt: event.target.value })
+                                }
+                              />
+                            </label>
+                          </div>
+                        )}
+                        {item.type === "flight" && (
+                          <>
+                            <label className="field-label">
+                              편명
+                              <input
+                                value={item.flightNo ?? ""}
+                                onChange={(event) =>
+                                  updateItem(item.id, {
+                                    flightNo: event.target.value.toUpperCase(),
+                                  })
+                                }
+                              />
+                            </label>
+                            <div className="date-pair">
+                              <label className="field-label">
+                                출발 공항
+                                <input
+                                  maxLength={3}
+                                  value={item.depAirport ?? ""}
+                                  onChange={(event) =>
+                                    updateItem(item.id, {
+                                      depAirport: event.target.value.toUpperCase(),
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="field-label">
+                                도착 공항
+                                <input
+                                  maxLength={3}
+                                  value={item.arrAirport ?? ""}
+                                  onChange={(event) =>
+                                    updateItem(item.id, {
+                                      arrAirport: event.target.value.toUpperCase(),
+                                    })
+                                  }
+                                />
+                              </label>
+                            </div>
+                          </>
+                        )}
+                        {item.type === "layover" && (
+                          <div className="date-pair">
+                            <label className="field-label">
+                              체류 도시
+                              <input
+                                value={item.layoverCity ?? ""}
+                                onChange={(event) =>
+                                  updateItem(item.id, { layoverCity: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="field-label">
+                              호텔명
+                              <input
+                                value={item.hotelName ?? ""}
+                                onChange={(event) =>
+                                  updateItem(item.id, { hotelName: event.target.value })
+                                }
+                              />
+                            </label>
+                          </div>
+                        )}
+                        <label className="field-label">
+                          메모
+                          <input
+                            value={item.note ?? ""}
+                            onChange={(event) =>
+                              updateItem(item.id, { note: event.target.value })
+                            }
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </section>
+      {analysis && !analyzing && (
+        <div className="sticky-action">
+          <button
+            className="button button-primary"
+            disabled={selected.size === 0 || importing}
+            onClick={submitImport}
+          >
+            {importing ? "일정을 등록하는 중…" : `선택한 ${selected.size}개 일정 등록`}
+          </button>
+        </div>
+      )}
     </main>
   );
 }
@@ -1644,7 +2100,11 @@ export default function Home() {
     };
   }, [notify]);
   useEffect(() => {
-    if (ready && profile?.role) loadMonth(currentMonth);
+    if (!ready || !profile?.role) return;
+    const timer = window.setTimeout(() => {
+      void loadMonth(currentMonth);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [currentMonth, loadMonth, profile?.role, ready]);
 
   const saveProfile = async (name: string, timezone: string) => {
@@ -1678,6 +2138,22 @@ export default function Home() {
     );
     await loadMonth(currentMonth);
     notify(`${data.deleted}개의 일정을 초기화했어요.`);
+    go("calendar");
+  };
+  const importRoster = async (items: RosterItem[]) => {
+    const data = await requestJson<{ imported: number; skipped: number }>(
+      "/api/roster/import",
+      { method: "POST", body: JSON.stringify({ items }) },
+    );
+    const first = items[0]?.startDate || items[0]?.startAt?.slice(0, 10);
+    const targetMonth = first?.slice(0, 7) || currentMonth;
+    if (targetMonth !== currentMonth) setCurrentMonth(targetMonth);
+    await loadMonth(targetMonth);
+    notify(
+      data.skipped
+        ? `${data.imported}개 등록 · 중복 ${data.skipped}개 제외`
+        : `${data.imported}개의 로스터 일정을 등록했어요.`,
+    );
     go("calendar");
   };
   const changeMonth = (delta: number) => {
@@ -1819,8 +2295,13 @@ export default function Home() {
             duties={duties}
             back={() => go("duty")}
             create={() => go("duty")}
+            roster={() => go("roster")}
             reset={resetMonth}
           />
+        );
+      case "roster":
+        return (
+          <RosterImport back={() => go("calendar")} importItems={importRoster} />
         );
       case "link":
         return (
