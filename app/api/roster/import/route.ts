@@ -104,44 +104,53 @@ export async function POST(request: Request) {
         { status: 422 },
       );
 
-    const normalized = body.items.map((item, index) => {
+    let incomplete = 0;
+    const normalized = body.items.flatMap((item) => {
       const type = clean(item.type, 20);
-      if (!allowed.has(type))
-        throw new Error(`${index + 1}번째 일정 유형을 확인해주세요.`);
+      if (!allowed.has(type)) {
+        incomplete += 1;
+        return [];
+      }
       const isAllDay = allDay.has(type);
-      const startDate = isAllDay ? clean(item.startDate, 10) : "";
-      const endDate = isAllDay ? clean(item.endDate, 10) : "";
-      const startAt = isAllDay ? "" : clean(item.startAt, 16);
-      const endAt = isAllDay ? "" : clean(item.endAt, 16);
-      if (
-        isAllDay &&
-        (!datePattern.test(startDate) ||
-          (endDate !== "" &&
-            (!datePattern.test(endDate) || startDate > endDate)))
-      )
-        throw new Error(`${index + 1}번째 일정 날짜를 확인해주세요.`);
-      if (
-        !isAllDay &&
-        (!dateTimePattern.test(startAt) ||
-          (endAt !== "" && !dateTimePattern.test(endAt)))
-      )
-        throw new Error(`${index + 1}번째 일정 시각을 확인해주세요.`);
+      const suppliedStartDate = clean(item.startDate, 10);
+      const suppliedEndDate = clean(item.endDate, 10);
+      const suppliedStartAt = clean(item.startAt, 16);
+      const suppliedEndAt = clean(item.endAt, 16);
+      let startDate = "";
+      let endDate = "";
+      let startAt = "";
+      let endAt = "";
+
+      if (isAllDay) {
+        startDate = datePattern.test(suppliedStartDate)
+          ? suppliedStartDate
+          : dateTimePattern.test(suppliedStartAt)
+            ? suppliedStartAt.slice(0, 10)
+            : "";
+        endDate = datePattern.test(suppliedEndDate) ? suppliedEndDate : "";
+        if (endDate && endDate < startDate) endDate = "";
+      } else if (dateTimePattern.test(suppliedStartAt)) {
+        startAt = suppliedStartAt;
+        endAt = dateTimePattern.test(suppliedEndAt) ? suppliedEndAt : "";
+      } else if (datePattern.test(suppliedStartDate)) {
+        // Some roster rows contain only a duty date. Store them as date-only
+        // duties instead of rejecting the whole import batch.
+        startDate = suppliedStartDate;
+        endDate = datePattern.test(suppliedEndDate) ? suppliedEndDate : "";
+        if (endDate && endDate < startDate) endDate = "";
+      }
+
+      if (!startDate && !startAt) {
+        incomplete += 1;
+        return [];
+      }
       const flightNo = clean(item.flightNo, 20).toUpperCase();
       const depAirport = clean(item.depAirport, 3).toUpperCase();
       const arrAirport = clean(item.arrAirport, 3).toUpperCase();
-      if (
-        type === "flight" &&
-        (!/^[A-Z]{3}$/.test(depAirport) ||
-          !/^[A-Z]{3}$/.test(arrAirport) ||
-          depAirport === arrAirport)
-      )
-        throw new Error(`${index + 1}번째 비행의 공항을 확인해주세요.`);
       const layoverCity = clean(item.layoverCity, 80);
-      if (type === "layover" && !layoverCity)
-        throw new Error(`${index + 1}번째 체류 도시를 확인해주세요.`);
       const sourceCode = clean(item.sourceCode, 40);
       const sourceNote = sourceCode ? `로스터 코드: ${sourceCode}` : "";
-      return {
+      return [{
         type,
         startDate,
         endDate,
@@ -154,7 +163,7 @@ export async function POST(request: Request) {
         layoverCity,
         hotelName: clean(item.hotelName, 160),
         note: [clean(item.note, 360), sourceNote].filter(Boolean).join(" · "),
-      };
+      }];
     });
 
     const existing = rows(
@@ -167,14 +176,31 @@ export async function POST(request: Request) {
         .all<ExistingDuty>(),
     );
     const seen = new Set(existing.map(existingKey));
+    let duplicates = 0;
     const fresh = normalized.filter((item) => {
       const key = duplicateKey(item);
-      if (seen.has(key)) return false;
+      if (seen.has(key)) {
+        duplicates += 1;
+        return false;
+      }
       seen.add(key);
       return true;
     });
+    const firstDate =
+      fresh[0]?.startDate ||
+      fresh[0]?.startAt.slice(0, 10) ||
+      normalized[0]?.startDate ||
+      normalized[0]?.startAt.slice(0, 10) ||
+      "";
+    const month = firstDate.slice(0, 7);
     if (fresh.length === 0)
-      return Response.json({ imported: 0, skipped: normalized.length });
+      return Response.json({
+        imported: 0,
+        skipped: duplicates + incomplete,
+        duplicates,
+        incomplete,
+        month,
+      });
 
     const now = new Date().toISOString();
     const statements = fresh.map((item) => {
@@ -209,7 +235,10 @@ export async function POST(request: Request) {
     await context.db.batch(statements);
     return Response.json({
       imported: fresh.length,
-      skipped: normalized.length - fresh.length,
+      skipped: duplicates + incomplete,
+      duplicates,
+      incomplete,
+      month,
     });
   } catch (error) {
     const message =

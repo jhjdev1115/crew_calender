@@ -53,8 +53,10 @@ test("ships AI roster PDF analysis and bulk import", async () => {
   assert.match(page, /\/api\/roster\/analyze/);
   assert.match(page, /\/api\/roster\/import/);
   assert.match(page, /공항별 현지 시각/);
-  assert.match(importRoute, /endDate !== ""/);
-  assert.match(importRoute, /endAt !== ""/);
+  assert.match(importRoute, /body\.items\.flatMap/);
+  assert.match(importRoute, /date-only/);
+  assert.match(importRoute, /incomplete/);
+  assert.match(page, /시작 정보 없음/);
   assert.match(dutiesRoute, /COALESCE\(end_date, start_date\)/);
   assert.match(dutiesRoute, /COALESCE\(substr\(end_at/);
   await access(new URL("../app/api/roster/analyze/route.ts", import.meta.url));

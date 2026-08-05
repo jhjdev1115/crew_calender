@@ -2148,19 +2148,24 @@ export default function Home() {
     go("calendar");
   };
   const importRoster = async (items: RosterItem[]) => {
-    const data = await requestJson<{ imported: number; skipped: number }>(
-      "/api/roster/import",
-      { method: "POST", body: JSON.stringify({ items }) },
-    );
+    const data = await requestJson<{
+      imported: number;
+      skipped: number;
+      duplicates: number;
+      incomplete: number;
+      month: string;
+    }>("/api/roster/import", {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    });
     const first = items[0]?.startDate || items[0]?.startAt?.slice(0, 10);
-    const targetMonth = first?.slice(0, 7) || currentMonth;
+    const targetMonth = data.month || first?.slice(0, 7) || currentMonth;
     if (targetMonth !== currentMonth) setCurrentMonth(targetMonth);
     await loadMonth(targetMonth);
-    notify(
-      data.skipped
-        ? `${data.imported}개 등록 · 중복 ${data.skipped}개 제외`
-        : `${data.imported}개의 로스터 일정을 등록했어요.`,
-    );
+    const result = [`${data.imported}개 등록`];
+    if (data.duplicates) result.push(`중복 ${data.duplicates}개 제외`);
+    if (data.incomplete) result.push(`시작 정보 없음 ${data.incomplete}개 제외`);
+    notify(result.join(" · "));
     go("calendar");
   };
   const changeMonth = (delta: number) => {
