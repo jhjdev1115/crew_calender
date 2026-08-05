@@ -190,6 +190,19 @@ function dutyLabel(duty: Duty) {
 function calendarDutyLabel(duty: Duty) {
   return duty.type === "flight" ? dutyLabels.flight : dutyLabel(duty);
 }
+function flightDurationMinutes(duty: Duty) {
+  if (!duty.start_at || !duty.end_at) return 0;
+  const start = new Date(duty.start_at).getTime();
+  const end = new Date(duty.end_at).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+  return Math.round((end - start) / 60_000);
+}
+function formatFlightMinutes(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest}분`;
+  return rest ? `${hours}시간 ${rest}분` : `${hours}시간`;
+}
 function formatShortDateTime(value: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -545,6 +558,26 @@ function CalendarHome({
     return map;
   }, [allDuties, cells]);
   const partnerName = String(partner.connection?.display_name ?? "파트너");
+  const flightStats = useMemo(() => {
+    const trackedDuties = role === "crew" ? duties : partner.partnerDuties;
+    const today = todayKey();
+    let totalMinutes = 0;
+    let completedMinutes = 0;
+    for (const duty of trackedDuties) {
+      if (duty.type !== "flight" || !dutyStart(duty).startsWith(month)) continue;
+      const duration = flightDurationMinutes(duty);
+      if (!duration) continue;
+      totalMinutes += duration;
+      if (dutyStart(duty) <= today) completedMinutes += duration;
+    }
+    return {
+      totalMinutes,
+      completedMinutes,
+      percent: totalMinutes
+        ? Math.min(100, Math.round((completedMinutes / totalMinutes) * 100))
+        : 0,
+    };
+  }, [duties, month, partner.partnerDuties, role]);
   return (
     <main className="screen calendar-screen">
       <section className="calendar-content">
@@ -597,6 +630,27 @@ function CalendarHome({
             <b>›</b>
           </button>
         )}
+        <section className="flight-progress" aria-label="이번 달 비행시간 진행률">
+          <div>
+            <span>
+              {role === "partner" ? `${partnerName}님의 ` : ""}이번 달 비행시간
+            </span>
+            <strong>
+              {formatFlightMinutes(flightStats.completedMinutes)}
+              <small> / 총 {formatFlightMinutes(flightStats.totalMinutes)}</small>
+            </strong>
+          </div>
+          <div
+            className="flight-progress-track"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={flightStats.percent}
+          >
+            <i style={{ width: `${flightStats.percent}%` }} />
+          </div>
+          <b>{flightStats.percent}%</b>
+        </section>
         <div className="month-toolbar">
           <button aria-label="이전 달" onClick={() => changeMonth(-1)}>
             ‹
@@ -639,7 +693,7 @@ function CalendarHome({
             return (
               <button
                 key={key}
-                className={`day-cell ${!current ? "outside" : ""} ${shared ? "shared" : ""}`}
+                className={`day-cell ${!current ? "outside" : ""} ${shared ? "shared" : ""} ${key === todayKey() ? "today" : ""}`}
                 onClick={() => {
                   selectDate(key);
                   go("day");
@@ -660,7 +714,14 @@ function CalendarHome({
                   </em>
                 ))}
                 {events.length > 2 && (
-                  <small className="more-count">+{events.length - 2}</small>
+                  <small className="more-count desktop-more-count">
+                    +{events.length - 2}
+                  </small>
+                )}
+                {events.length > 1 && (
+                  <small className="more-count mobile-more-count">
+                    +{events.length - 1}
+                  </small>
                 )}
               </button>
             );

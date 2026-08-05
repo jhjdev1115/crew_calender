@@ -777,6 +777,24 @@ button:disabled {
   background: linear-gradient(145deg, #fbfff7, #f4f9ef);
   border-radius: 9px;
 }
+.day-cell.today {
+  z-index: 1;
+  border: 1px solid #76a7f4;
+  background: linear-gradient(145deg, #eef5ff, #dceaff);
+  box-shadow: inset 0 0 0 1px rgba(20, 104, 239, 0.08);
+  border-radius: 9px;
+}
+.day-cell.today > span:first-child {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff !important;
+  background: var(--blue);
+  font-weight: 800;
+}
 .day-cell.focused > span:first-child {
   color: var(--green-dark);
   font-weight: 800;
@@ -825,6 +843,64 @@ button:disabled {
   color: var(--muted);
   font-size: 9px;
   line-height: 1;
+}
+.mobile-more-count {
+  display: none;
+}
+.flight-progress {
+  width: 100%;
+  margin-top: 11px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 8px 12px;
+  align-items: end;
+  border: 1px solid #d8e5fb;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #f8fbff, #edf4ff);
+}
+.flight-progress > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.flight-progress span {
+  color: #53647e;
+  font-size: 11px;
+  font-weight: 700;
+}
+.flight-progress strong {
+  overflow: hidden;
+  color: var(--blue-dark);
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.flight-progress strong small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+.flight-progress > b {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--blue);
+  font-size: 15px;
+  text-align: right;
+}
+.flight-progress-track {
+  grid-column: 1 / -1;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dbe6f8;
+}
+.flight-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1468ef, #57a3ff);
+  transition: width 0.35s ease;
 }
 .calendar-empty {
   margin: 14px 0 -6px;
@@ -2120,6 +2196,26 @@ button:disabled {
   .ai-roster-banner small {
     font-size: 9px;
   }
+  .flight-progress {
+    flex: 0 0 auto;
+    min-height: 44px;
+    margin-top: 7px;
+    padding: 7px 10px;
+    grid-template-columns: minmax(0, 1fr) 37px;
+    gap: 5px 8px;
+    border-radius: 11px;
+  }
+  .flight-progress span,
+  .flight-progress strong small {
+    font-size: 9px;
+  }
+  .flight-progress strong,
+  .flight-progress > b {
+    font-size: 12px;
+  }
+  .flight-progress-track {
+    height: 5px;
+  }
   .month-toolbar {
     flex: 0 0 auto;
     grid-template-columns: 38px 1fr 38px 49px;
@@ -2159,6 +2255,11 @@ button:disabled {
     font-size: 12px;
     line-height: 1;
   }
+  .day-cell.today > span:first-child {
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
+  }
   .event-pill {
     width: calc(100% - 2px);
     padding: 3px 1px;
@@ -2169,6 +2270,13 @@ button:disabled {
   }
   .more-count {
     font-size: 8px;
+  }
+  .day-cell .event-pill:nth-of-type(2),
+  .desktop-more-count {
+    display: none;
+  }
+  .mobile-more-count {
+    display: block;
   }
   .calendar-empty {
     display: none;

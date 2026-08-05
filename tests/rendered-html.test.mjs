@@ -95,3 +95,18 @@ test("fits the full calendar into the mobile viewport with compact flight labels
   assert.match(styles, /grid-template-rows: repeat\(6, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.calendar-screen > \.bottom-nav \{\s*height: 62px/);
 });
+
+test("highlights today and reports completed monthly flight time", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /function flightDurationMinutes/);
+  assert.match(page, /dutyStart\(duty\) <= today/);
+  assert.match(page, /이번 달 비행시간/);
+  assert.match(page, /role="progressbar"/);
+  assert.match(page, /key === todayKey\(\) \? "today"/);
+  assert.match(styles, /\.day-cell\.today/);
+  assert.match(styles, /\.flight-progress-track/);
+});
