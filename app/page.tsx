@@ -8,6 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import { airportLocalDateTimeToDate } from "./airport-timezones";
+import {
+  analyzeRosterPdfLocally,
+  type LocalRosterAnalysis,
+} from "./roster-local-parser";
 
 type Screen =
   | "onboarding"
@@ -87,13 +91,7 @@ type RosterItem = DutyPayload & {
   sourceCode: string;
   confidence: number;
 };
-type RosterAnalysis = {
-  summary: string;
-  periodStart: string;
-  periodEnd: string;
-  timezoneNote: string;
-  items: RosterItem[];
-};
+type RosterAnalysis = LocalRosterAnalysis;
 
 const dutyLabels: Record<DutyType, string> = {
   flight: "비행",
@@ -662,7 +660,7 @@ function CalendarHome({
           <button className="ai-roster-banner" onClick={() => go("roster")}>
             <span>✦</span>
             <span>
-              <strong>AI로 로스터 PDF 등록</strong>
+              <strong>기기에서 로스터 PDF 등록</strong>
               <small>PDF를 올리면 일정과 현지 시각을 자동으로 정리해요</small>
             </span>
             <b>›</b>
@@ -1146,7 +1144,7 @@ function QuickEntry({
         <button className="quick-card ai" onClick={roster}>
           <span>✦</span>
           <span>
-            <strong>AI 로스터 PDF 분석</strong>
+            <strong>보안 로스터 PDF 분석</strong>
             <small>비행·휴무·대기·교육 일정을 한 번에 가져오기</small>
           </span>
           <b>›</b>
@@ -1225,6 +1223,7 @@ function RosterImport({
   const [analyzing, setAnalyzing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const chooseFile = (next: File | null) => {
     setError("");
@@ -1255,25 +1254,11 @@ function RosterImport({
     setAnalyzing(true);
     setError("");
     try {
-      const fileData = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result ?? ""));
-        reader.onerror = () => reject(new Error("PDF 파일을 읽지 못했어요."));
-        reader.readAsDataURL(file);
-      });
-      const response = await fetch("/api/roster/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, fileData }),
-      });
-      const data = (await response.json()) as {
-        analysis?: RosterAnalysis;
-        error?: string;
-      };
-      if (!response.ok || !data.analysis)
-        throw new Error(data.error || "PDF를 분석하지 못했어요.");
-      setAnalysis(data.analysis);
-      setSelected(new Set(data.analysis.items.map((item) => item.id)));
+      const localAnalysis = await analyzeRosterPdfLocally(file);
+      setAnalysis(localAnalysis);
+      setSelected(new Set(localAnalysis.items.map((item) => item.id)));
+      setFile(null);
+      setFileInputKey((value) => value + 1);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "PDF를 분석하지 못했어요.",
@@ -1334,11 +1319,11 @@ function RosterImport({
 
   return (
     <main className="screen form-screen roster-screen">
-      <TopBar title="AI 로스터 분석" onBack={back} />
+      <TopBar title="보안 로스터 분석" onBack={back} />
       <section className="screen-body roster-body">
         <div className="page-intro">
           <h1>로스터 PDF를 일정으로 바꿔드려요</h1>
-          <p>비행·휴무·대기·교육과 공항별 현지 시각을 자동으로 정리해요</p>
+          <p>PDF를 기기 안에서 읽고 비행·휴무·교육만 안전하게 정리해요</p>
         </div>
         <label
           className={`roster-dropzone ${dragging ? "dragging" : ""} ${file ? "has-file" : ""}`}
@@ -1354,6 +1339,7 @@ function RosterImport({
           }}
         >
           <input
+            key={fileInputKey}
             type="file"
             accept="application/pdf,.pdf"
             onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
@@ -1369,8 +1355,8 @@ function RosterImport({
         <div className="roster-privacy">
           <span>▣</span>
           <p>
-            PDF는 AI 분석을 위해 OpenAI로 전송되며 CrewSync 데이터베이스에는
-            원본 파일을 저장하지 않아요. 이름과 사번은 일정에 등록하지 않습니다.
+            PDF 원본과 전체 텍스트는 서버나 AI로 전송하지 않아요. 기기에서
+            날짜·비행 경로·휴무·교육만 추출하고 원본은 즉시 메모리에서 제거해요.
           </p>
         </div>
         {error && <p className="roster-error">{error}</p>}
@@ -1379,14 +1365,14 @@ function RosterImport({
           disabled={!file || analyzing}
           onClick={analyze}
         >
-          {analyzing ? "AI가 로스터를 분석하는 중…" : "✦ AI 분석 시작"}
+          {analyzing ? "기기에서 로스터를 읽는 중…" : "보안 분석 시작"}
         </button>
         {analyzing && (
           <div className="roster-progress" role="status">
             <span className="loading-spinner" />
             <span>
-              <strong>표의 날짜와 열을 읽고 있어요</strong>
-              <small>복잡한 로스터는 약 1분 정도 걸릴 수 있어요.</small>
+              <strong>기기 안에서 날짜 열을 읽고 있어요</strong>
+              <small>원본 PDF는 외부로 전송되지 않아요.</small>
             </span>
           </div>
         )}
@@ -1470,7 +1456,7 @@ function RosterImport({
                       </button>
                     </div>
                     <div className="roster-item-meta">
-                      <span>{item.sourceCode || "코드 없음"}</span>
+                      <span>기기에서 추출</span>
                       <span className={confidence < 75 ? "low" : ""}>
                         신뢰도 {confidence}%
                       </span>
@@ -1545,17 +1531,6 @@ function RosterImport({
                         )}
                         {item.type === "flight" && (
                           <>
-                            <label className="field-label">
-                              편명
-                              <input
-                                value={item.flightNo ?? ""}
-                                onChange={(event) =>
-                                  updateItem(item.id, {
-                                    flightNo: event.target.value.toUpperCase(),
-                                  })
-                                }
-                              />
-                            </label>
                             <div className="date-pair">
                               <label className="field-label">
                                 출발 공항
@@ -1584,37 +1559,6 @@ function RosterImport({
                             </div>
                           </>
                         )}
-                        {item.type === "layover" && (
-                          <div className="date-pair">
-                            <label className="field-label">
-                              체류 도시
-                              <input
-                                value={item.layoverCity ?? ""}
-                                onChange={(event) =>
-                                  updateItem(item.id, { layoverCity: event.target.value })
-                                }
-                              />
-                            </label>
-                            <label className="field-label">
-                              호텔명
-                              <input
-                                value={item.hotelName ?? ""}
-                                onChange={(event) =>
-                                  updateItem(item.id, { hotelName: event.target.value })
-                                }
-                              />
-                            </label>
-                          </div>
-                        )}
-                        <label className="field-label">
-                          메모
-                          <input
-                            value={item.note ?? ""}
-                            onChange={(event) =>
-                              updateItem(item.id, { note: event.target.value })
-                            }
-                          />
-                        </label>
                       </div>
                     )}
                   </article>

@@ -38,8 +38,16 @@ export async function GET(request: Request) {
     if (connection?.partner_id) {
       const result = await context.db
         .prepare(
-          `SELECT id, type, start_date, end_date, start_at, end_at, dep_airport, arr_airport, event_tz, layover_city
-        FROM duties WHERE user_id = ? AND deleted_at IS NULL ORDER BY COALESCE(start_date, start_at) LIMIT 100`,
+          `SELECT id, type,
+            COALESCE(start_date, substr(start_at, 1, 10)) AS start_date,
+            COALESCE(end_date, substr(end_at, 1, 10)) AS end_date,
+            NULL AS start_at, NULL AS end_at, NULL AS event_tz, NULL AS layover_city,
+            CASE WHEN type = 'flight' THEN dep_airport ELSE NULL END AS dep_airport,
+            CASE WHEN type = 'flight' THEN arr_airport ELSE NULL END AS arr_airport
+          FROM duties
+          WHERE user_id = ? AND deleted_at IS NULL
+            AND type IN ('flight', 'off', 'training')
+          ORDER BY COALESCE(start_date, start_at) LIMIT 100`,
         )
         .bind(connection.partner_id)
         .all<Record<string, unknown>>();

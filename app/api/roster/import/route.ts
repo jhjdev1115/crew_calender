@@ -28,15 +28,7 @@ type ExistingDuty = {
   arr_airport: string | null;
 };
 
-const allowed = new Set([
-  "flight",
-  "standby",
-  "off",
-  "layover",
-  "training",
-  "leave",
-]);
-const allDay = new Set(["off", "leave"]);
+const allowed = new Set(["flight", "off", "training"]);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
@@ -112,58 +104,47 @@ export async function POST(request: Request) {
         incomplete += 1;
         return [];
       }
-      const isAllDay = allDay.has(type);
       const suppliedStartDate = clean(item.startDate, 10);
       const suppliedEndDate = clean(item.endDate, 10);
       const suppliedStartAt = clean(item.startAt, 16);
-      const suppliedEndAt = clean(item.endAt, 16);
       let startDate = "";
       let endDate = "";
       let startAt = "";
       let endAt = "";
 
-      if (isAllDay) {
-        startDate = datePattern.test(suppliedStartDate)
-          ? suppliedStartDate
-          : dateTimePattern.test(suppliedStartAt)
-            ? suppliedStartAt.slice(0, 10)
-            : "";
-        endDate = datePattern.test(suppliedEndDate) ? suppliedEndDate : "";
-        if (endDate && endDate < startDate) endDate = "";
-      } else if (dateTimePattern.test(suppliedStartAt)) {
-        startAt = suppliedStartAt;
-        endAt = dateTimePattern.test(suppliedEndAt) ? suppliedEndAt : "";
-      } else if (datePattern.test(suppliedStartDate)) {
-        // Some roster rows contain only a duty date. Store them as date-only
-        // duties instead of rejecting the whole import batch.
-        startDate = suppliedStartDate;
-        endDate = datePattern.test(suppliedEndDate) ? suppliedEndDate : "";
-        if (endDate && endDate < startDate) endDate = "";
-      }
+      startDate = datePattern.test(suppliedStartDate)
+        ? suppliedStartDate
+        : dateTimePattern.test(suppliedStartAt)
+          ? suppliedStartAt.slice(0, 10)
+          : "";
+      endDate = datePattern.test(suppliedEndDate) ? suppliedEndDate : "";
+      if (endDate && endDate < startDate) endDate = "";
 
       if (!startDate && !startAt) {
         incomplete += 1;
         return [];
       }
-      const flightNo = clean(item.flightNo, 20).toUpperCase();
-      const depAirport = clean(item.depAirport, 3).toUpperCase();
-      const arrAirport = clean(item.arrAirport, 3).toUpperCase();
-      const layoverCity = clean(item.layoverCity, 80);
-      const sourceCode = clean(item.sourceCode, 40);
-      const sourceNote = sourceCode ? `로스터 코드: ${sourceCode}` : "";
+      const requestedDep = clean(item.depAirport, 3).toUpperCase();
+      const requestedArr = clean(item.arrAirport, 3).toUpperCase();
+      const depAirport = type === "flight" && /^[A-Z]{3}$/.test(requestedDep)
+        ? requestedDep
+        : "";
+      const arrAirport = type === "flight" && /^[A-Z]{3}$/.test(requestedArr)
+        ? requestedArr
+        : "";
       return [{
         type,
         startDate,
         endDate,
         startAt,
         endAt,
-        flightNo,
+        flightNo: "",
         depAirport,
         arrAirport,
-        aircraft: clean(item.aircraft, 80),
-        layoverCity,
-        hotelName: clean(item.hotelName, 160),
-        note: [clean(item.note, 360), sourceNote].filter(Boolean).join(" · "),
+        aircraft: "",
+        layoverCity: "",
+        hotelName: "",
+        note: "",
       }];
     });
 
