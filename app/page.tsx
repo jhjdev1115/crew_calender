@@ -8,10 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { airportLocalDateTimeToDate } from "./airport-timezones";
-import {
-  analyzeRosterPdfLocally,
-  type LocalRosterAnalysis,
-} from "./roster-local-parser";
+import type { LocalRosterAnalysis } from "./roster-token-parser";
 
 type Screen =
   | "onboarding"
@@ -1254,6 +1251,7 @@ function RosterImport({
     setAnalyzing(true);
     setError("");
     try {
+      const { analyzeRosterPdfLocally } = await import("./roster-local-parser");
       const localAnalysis = await analyzeRosterPdfLocally(file);
       setAnalysis(localAnalysis);
       setSelected(new Set(localAnalysis.items.map((item) => item.id)));
