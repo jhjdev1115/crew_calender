@@ -81,6 +81,44 @@ export const notificationPreferences = sqliteTable("notification_preferences", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => profiles.userId),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_push_subscriptions_endpoint").on(table.endpoint),
+    index("idx_push_subscriptions_user").on(table.userId),
+  ],
+);
+
+export const notificationDeliveries = sqliteTable(
+  "notification_deliveries",
+  {
+    id: text("id").primaryKey(),
+    subscriptionId: text("subscription_id")
+      .notNull()
+      .references(() => pushSubscriptions.id),
+    eventKey: text("event_key").notNull(),
+    sentAt: text("sent_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_notification_deliveries_once").on(
+      table.subscriptionId,
+      table.eventKey,
+    ),
+    index("idx_notification_deliveries_sent").on(table.sentAt),
+  ],
+);
+
 export const inviteCodes = sqliteTable(
   "invite_codes",
   {

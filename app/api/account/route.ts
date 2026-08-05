@@ -12,6 +12,14 @@ export async function DELETE(request: Request) {
     await context.db.batch([
       context.db
         .prepare(
+          "DELETE FROM notification_deliveries WHERE subscription_id IN (SELECT id FROM push_subscriptions WHERE user_id = ?)",
+        )
+        .bind(context.user.userId),
+      context.db
+        .prepare("DELETE FROM push_subscriptions WHERE user_id = ?")
+        .bind(context.user.userId),
+      context.db
+        .prepare(
           "UPDATE profiles SET deletion_requested_at = ?, updated_at = ? WHERE user_id = ?",
         )
         .bind(now, now, context.user.userId),

@@ -6,6 +6,9 @@ type RuntimeEnv = {
   DB?: D1Database;
   INVITE_PEPPER?: string;
   OPENAI_API_KEY?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
 };
 
 export function getD1(): D1Database {
@@ -28,6 +31,14 @@ export function getOpenAIApiKey(): string | null {
     (typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined) ??
     null
   );
+}
+
+export function getVapidKeys() {
+  const runtime = env as unknown as RuntimeEnv;
+  const publicKey = runtime.VAPID_PUBLIC_KEY ?? null;
+  const privateKey = runtime.VAPID_PRIVATE_KEY ?? null;
+  const subject = runtime.VAPID_SUBJECT ?? "mailto:jhjdev1115@gmail.com";
+  return { publicKey, privateKey, subject };
 }
 
 let initialized: Promise<void> | null = null;
@@ -113,6 +124,21 @@ async function initializeDatabase() {
       connection_id TEXT NOT NULL REFERENCES connections(id),
       created_at TEXT NOT NULL
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES profiles(user_id),
+      endpoint TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS notification_deliveries (
+      id TEXT PRIMARY KEY,
+      subscription_id TEXT NOT NULL REFERENCES push_subscriptions(id),
+      event_key TEXT NOT NULL,
+      sent_at TEXT NOT NULL
+    )`),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_duties_user_roster ON duties(user_id, roster_month)",
     ),
@@ -139,6 +165,18 @@ async function initializeDatabase() {
     ),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_active_memberships_connection ON active_memberships(connection_id)",
+    ),
+    db.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint ON push_subscriptions(endpoint)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)",
+    ),
+    db.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_deliveries_once ON notification_deliveries(subscription_id, event_key)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_notification_deliveries_sent ON notification_deliveries(sent_at)",
     ),
   ]);
   await db.prepare("PRAGMA optimize").run();

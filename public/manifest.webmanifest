@@ -1,0 +1,9 @@
+{
+  "name": "CrewSync",
+  "short_name": "CrewSync",
+  "description": "승무원과 파트너의 공유 일정 캘린더",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1468ef"
+}

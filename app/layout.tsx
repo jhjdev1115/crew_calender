@@ -19,6 +19,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description,
+    manifest: "/manifest.webmanifest",
+    themeColor: "#1468ef",
     openGraph: {
       title,
       description,

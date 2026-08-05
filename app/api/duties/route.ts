@@ -1,4 +1,5 @@
 import { apiError, monthBounds, prepareRequest, rows } from "../_lib";
+import { notifyPartnerRosterChanged } from "../_push";
 
 type DutyInput = {
   type?: string;
@@ -156,6 +157,7 @@ export async function POST(request: Request) {
         now,
       )
       .run();
+    await notifyPartnerRosterChanged(context.db, context.user.userId);
     const duty = await context.db
       .prepare("SELECT * FROM duties WHERE id = ? AND user_id = ?")
       .bind(id, context.user.userId)
@@ -183,6 +185,8 @@ export async function DELETE(request: Request) {
       )
       .bind(now, now, context.user.userId, `${bounds.start.slice(0, 7)}-01`)
       .run();
+    if (result.meta.changes)
+      await notifyPartnerRosterChanged(context.db, context.user.userId);
     return Response.json({ deleted: result.meta.changes ?? 0 });
   } catch (error) {
     return apiError(error, "월 일정을 초기화하지 못했어요.");

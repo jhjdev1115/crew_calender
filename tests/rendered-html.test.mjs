@@ -128,3 +128,26 @@ test("keeps today's typography unchanged and adds Korean flight time", async () 
   assert.match(airportTimes, /timeZoneOffsetMs/);
   assert.match(page, /airportLocalDateTimeToDate/);
 });
+
+test("ships encrypted web push subscriptions and scheduled notification delivery", async () => {
+  const [page, pushRoute, pushWorker, worker, migration] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/push/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/_push.ts", import.meta.url), "utf8"),
+    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0002_wet_sabretooth.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /Notification\.requestPermission/);
+  assert.match(page, /pushManager\.subscribe/);
+  assert.match(page, /휴대폰 알림 연결됨/);
+  assert.match(pushRoute, /push_subscriptions/);
+  assert.match(pushWorker, /buildPushPayload/);
+  assert.match(pushWorker, /own-flight-pre/);
+  assert.match(pushWorker, /partner-flight-post/);
+  assert.match(pushWorker, /shared-off/);
+  assert.match(worker, /async scheduled/);
+  assert.match(migration, /notification_deliveries/);
+  await access(new URL("../public/crew-sw.js", import.meta.url));
+  await access(new URL("../public/manifest.webmanifest", import.meta.url));
+});

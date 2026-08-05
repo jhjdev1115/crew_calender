@@ -1,4 +1,5 @@
 import { prepareRequest, rows } from "../../_lib";
+import { notifyPartnerRosterChanged } from "../../_push";
 
 type ImportItem = {
   sourceCode?: string;
@@ -233,6 +234,7 @@ export async function POST(request: Request) {
         );
     });
     await context.db.batch(statements);
+    await notifyPartnerRosterChanged(context.db, context.user.userId);
     return Response.json({
       imported: fresh.length,
       skipped: duplicates + incomplete,

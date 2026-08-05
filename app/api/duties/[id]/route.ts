@@ -1,4 +1,5 @@
 import { apiError, prepareRequest } from "../../_lib";
+import { notifyPartnerRosterChanged } from "../../_push";
 
 export async function DELETE(
   request: Request,
@@ -20,6 +21,7 @@ export async function DELETE(
         { error: "일정을 찾을 수 없어요." },
         { status: 404 },
       );
+    await notifyPartnerRosterChanged(context.db, context.user.userId);
     return Response.json({ deleted: true });
   } catch (error) {
     return apiError(error, "일정을 삭제하지 못했어요.");

@@ -5,6 +5,7 @@ import {
   DEFAULT_IMAGE_SIZES,
 } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { dispatchAllDue } from "../app/api/_push";
 
 interface Env {
   ASSETS: Fetcher;
@@ -59,6 +60,13 @@ const worker = {
     }
 
     return handler.fetch(request, env, ctx);
+  },
+  async scheduled(
+    _controller: { scheduledTime: number; cron: string },
+    env: Env,
+    ctx: ExecutionContext,
+  ) {
+    ctx.waitUntil(dispatchAllDue(env.DB));
   },
 };
 

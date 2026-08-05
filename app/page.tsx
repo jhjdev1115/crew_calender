@@ -1843,6 +1843,11 @@ function Toggle({
 function SettingIcon({ children }: { children: ReactNode }) {
   return <span className="setting-icon">{children}</span>;
 }
+function base64UrlToBytes(value: string) {
+  const padded = `${value.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - (value.length % 4)) % 4)}`;
+  const raw = window.atob(padded);
+  return Uint8Array.from(raw, (character) => character.charCodeAt(0));
+}
 function NotificationSettings({
   value,
   go,
@@ -1854,6 +1859,81 @@ function NotificationSettings({
 }) {
   const [settings, setSettings] = useState(value);
   const [saving, setSaving] = useState(false);
+  const [pushStatus, setPushStatus] = useState<
+    "checking" | "unsupported" | "default" | "denied" | "enabled"
+  >("checking");
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        if (active) setPushStatus("unsupported");
+        return;
+      }
+      if (Notification.permission === "denied") {
+        if (active) setPushStatus("denied");
+        return;
+      }
+      const registration = await navigator.serviceWorker.register("/crew-sw.js");
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await requestJson("/api/push", {
+          method: "POST",
+          body: JSON.stringify(subscription.toJSON()),
+        });
+      }
+      if (active) setPushStatus(subscription ? "enabled" : "default");
+    })().catch(() => {
+      if (active) setPushStatus("unsupported");
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const enablePush = async () => {
+    setPushBusy(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushStatus(permission === "denied" ? "denied" : "default");
+        return;
+      }
+      const state = await requestJson<{ publicKey: string }>("/api/push");
+      const registration = await navigator.serviceWorker.register("/crew-sw.js");
+      let subscription = await registration.pushManager.getSubscription();
+      subscription ??= await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlToBytes(state.publicKey),
+      });
+      await requestJson("/api/push", {
+        method: "POST",
+        body: JSON.stringify(subscription.toJSON()),
+      });
+      setPushStatus("enabled");
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "알림을 연결하지 못했어요.",
+      );
+    } finally {
+      setPushBusy(false);
+    }
+  };
+  const testPush = async () => {
+    setPushBusy(true);
+    try {
+      const result = await requestJson<{ sent: number }>("/api/push", {
+        method: "POST",
+        body: JSON.stringify({ action: "test" }),
+      });
+      if (!result.sent) throw new Error("연결된 알림 기기를 찾지 못했어요.");
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "테스트 알림을 보내지 못했어요.",
+      );
+    } finally {
+      setPushBusy(false);
+    }
+  };
   const update = async (key: keyof NotificationState, next: boolean) => {
     const previous = settings;
     const changed = { ...settings, [key]: next };
@@ -1881,6 +1961,38 @@ function NotificationSettings({
     <main className="screen form-screen notifications-screen">
       <TopBar title="알림 설정" onBack={() => go("settings")} />
       <section className="screen-body settings-body">
+        <div className={`push-setup-card ${pushStatus === "enabled" ? "enabled" : ""}`}>
+          <SettingIcon>♧</SettingIcon>
+          <span>
+            <strong>
+              {pushStatus === "enabled" ? "휴대폰 알림 연결됨" : "휴대폰 알림 받기"}
+            </strong>
+            <small>
+              {pushStatus === "unsupported"
+                ? "아이폰은 홈 화면에 추가한 뒤 알림을 켜주세요"
+                : pushStatus === "denied"
+                  ? "브라우저 설정에서 알림 권한을 허용해주세요"
+                  : pushStatus === "enabled"
+                    ? "앱을 닫아도 일정 알림을 받을 수 있어요"
+                    : "한 번만 허용하면 이 기기로 알려드려요"}
+            </small>
+          </span>
+          {pushStatus === "enabled" ? (
+            <button disabled={pushBusy} onClick={testPush}>
+              테스트
+            </button>
+          ) : (
+            <button
+              disabled={
+                pushBusy ||
+                ["checking", "unsupported", "denied"].includes(pushStatus)
+              }
+              onClick={enablePush}
+            >
+              {pushBusy ? "연결 중" : "알림 켜기"}
+            </button>
+          )}
+        </div>
         <div className="setting-card single">
           <SettingIcon>●</SettingIcon>
           <span>
@@ -2272,6 +2384,21 @@ export default function Home() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [authRequired, currentMonth, loadMonth, loadPartner, profile?.role, ready]);
+
+  useEffect(() => {
+    if (!ready || authRequired || !profile?.role) return;
+    if (!("Notification" in window) || Notification.permission !== "granted")
+      return;
+    const dispatch = () => {
+      void requestJson("/api/push/dispatch", { method: "POST" }).catch(() => {});
+    };
+    const first = window.setTimeout(dispatch, 2500);
+    const interval = window.setInterval(dispatch, 60_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(interval);
+    };
+  }, [authRequired, profile?.role, ready]);
 
   const saveProfile = async (name: string, timezone: string) => {
     const data = await requestJson<{ profile: Profile }>("/api/profile", {
