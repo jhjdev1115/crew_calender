@@ -68,3 +68,17 @@ test("ships AI roster PDF analysis and bulk import", async () => {
   await access(new URL("../app/api/roster/analyze/route.ts", import.meta.url));
   await access(new URL("../app/api/roster/import/route.ts", import.meta.url));
 });
+
+test("requires real sign-in and keeps shared schedules automatically synchronized", async () => {
+  const page = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(page, /\/signin-with-chatgpt\?return_to=\//);
+  assert.match(page, /ChatGPT로 로그인/);
+  assert.match(page, /window\.setInterval\(sync, 10_000\)/);
+  assert.match(page, /visibilitychange/);
+  assert.match(page, /window\.addEventListener\("focus"/);
+  assert.match(page, /loadPartner\(\{ silent: true \}\)/);
+});

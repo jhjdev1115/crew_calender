@@ -121,13 +121,27 @@ const defaultNotifications: NotificationState = {
   notificationTz: "auto",
 };
 
+class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
   const data = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new Error(data.error || "요청을 처리하지 못했어요.");
+  if (!response.ok)
+    throw new ApiRequestError(
+      data.error || "요청을 처리하지 못했어요.",
+      response.status,
+    );
   return data;
 }
 
@@ -269,7 +283,13 @@ function LoadingScreen() {
   );
 }
 
-function Onboarding({ onContinue }: { onContinue: () => void }) {
+function Onboarding({
+  onContinue,
+  buttonLabel = "CrewSync 시작하기",
+}: {
+  onContinue: () => void;
+  buttonLabel?: string;
+}) {
   return (
     <main className="screen onboarding-screen">
       <div className="onboarding-inner">
@@ -307,7 +327,7 @@ function Onboarding({ onContinue }: { onContinue: () => void }) {
       </div>
       <div className="auth-actions">
         <button className="button button-primary" onClick={onContinue}>
-          CrewSync 시작하기
+          {buttonLabel}
         </button>
         <p className="legal">
           계속하면 <a href="#terms">이용약관</a> 및{" "}
@@ -2012,6 +2032,7 @@ function AccountDelete({
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("onboarding");
   const [ready, setReady] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
   const [role, setRole] = useState<Role>("crew");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [duties, setDuties] = useState<Duty[]>([]);
@@ -2035,24 +2056,25 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
   const loadMonth = useCallback(
-    async (month: string) => {
-      setLoadingDuties(true);
+    async (month: string, options: { silent?: boolean } = {}) => {
+      if (!options.silent) setLoadingDuties(true);
       try {
         const data = await requestJson<{ duties: Duty[] }>(
           `/api/duties?month=${month}`,
         );
         setDuties(data.duties.map((d) => ({ ...d, source: "mine" })));
       } catch (error) {
-        notify(
-          error instanceof Error ? error.message : "일정을 불러오지 못했어요.",
-        );
+        if (!options.silent)
+          notify(
+            error instanceof Error ? error.message : "일정을 불러오지 못했어요.",
+          );
       } finally {
-        setLoadingDuties(false);
+        if (!options.silent) setLoadingDuties(false);
       }
     },
     [notify],
   );
-  const loadPartner = useCallback(async () => {
+  const loadPartner = useCallback(async (options: { silent?: boolean } = {}) => {
     try {
       const data = await requestJson<PartnerState>("/api/invites");
       setPartner({
@@ -2063,11 +2085,12 @@ export default function Home() {
         })),
       });
     } catch (error) {
-      notify(
-        error instanceof Error
-          ? error.message
-          : "연동 정보를 불러오지 못했어요.",
-      );
+      if (!options.silent)
+        notify(
+          error instanceof Error
+            ? error.message
+            : "연동 정보를 불러오지 못했어요.",
+        );
     }
   }, [notify]);
 
@@ -2095,9 +2118,13 @@ export default function Home() {
           })),
         });
       } catch (error) {
-        notify(
-          error instanceof Error ? error.message : "앱을 시작하지 못했어요.",
-        );
+        if (error instanceof ApiRequestError && error.status === 401) {
+          if (mounted) setAuthRequired(true);
+        } else {
+          notify(
+            error instanceof Error ? error.message : "앱을 시작하지 못했어요.",
+          );
+        }
       } finally {
         if (mounted) setReady(true);
       }
@@ -2113,6 +2140,31 @@ export default function Home() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [currentMonth, loadMonth, profile?.role, ready]);
+
+  useEffect(() => {
+    if (!ready || authRequired || !profile?.role) return;
+    let active = true;
+    const sync = () => {
+      if (!active || document.visibilityState === "hidden") return;
+      void Promise.all([
+        loadMonth(currentMonth, { silent: true }),
+        loadPartner({ silent: true }),
+      ]);
+    };
+    const interval = window.setInterval(sync, 10_000);
+    const onFocus = () => sync();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [authRequired, currentMonth, loadMonth, loadPartner, profile?.role, ready]);
 
   const saveProfile = async (name: string, timezone: string) => {
     const data = await requestJson<{ profile: Profile }>("/api/profile", {
@@ -2229,6 +2281,19 @@ export default function Home() {
       <div className="site-shell">
         <div className="app-frame">
           <LoadingScreen />
+        </div>
+      </div>
+    );
+  if (authRequired)
+    return (
+      <div className="site-shell">
+        <div className="app-frame">
+          <Onboarding
+            buttonLabel="ChatGPT로 로그인"
+            onContinue={() => {
+              window.location.href = "/signin-with-chatgpt?return_to=/";
+            }}
+          />
         </div>
       </div>
     );
