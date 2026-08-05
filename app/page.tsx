@@ -209,6 +209,25 @@ function formatShortDateTime(value: string | null) {
   if (Number.isNaN(date.getTime())) return value.replace("T", " ");
   return `${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours() < 12 ? "오전" : "오후"} ${date.getHours() % 12 || 12}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
+function formatKoreanTime(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+function formatKoreanFlightRange(duty: Duty) {
+  const start = formatKoreanTime(duty.start_at);
+  const end = formatKoreanTime(duty.end_at);
+  if (!start) return "";
+  return end ? `${start} → ${end}` : start;
+}
 
 function Mark({
   children,
@@ -779,6 +798,11 @@ function DayDetail({
       <span>
         {formatDutyRange(duty)}
       </span>
+      {duty.type === "flight" && formatKoreanFlightRange(duty) && (
+        <span className="korea-time">
+          한국 시간 · {formatKoreanFlightRange(duty)}
+        </span>
+      )}
       {own && duty.note && <small>{duty.note}</small>}
     </article>
   );

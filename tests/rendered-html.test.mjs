@@ -110,3 +110,16 @@ test("highlights today and reports completed monthly flight time", async () => {
   assert.match(styles, /\.day-cell\.today/);
   assert.match(styles, /\.flight-progress-track/);
 });
+
+test("keeps today's typography unchanged and adds Korean flight time", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /timeZone: "Asia\/Seoul"/);
+  assert.match(page, /한국 시간 ·/);
+  assert.match(page, /formatKoreanFlightRange/);
+  assert.match(styles, /\.saved-duty > \.korea-time/);
+  assert.doesNotMatch(styles, /\.day-cell\.today > span:first-child/);
+});

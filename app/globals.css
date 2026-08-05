@@ -702,27 +702,27 @@ button:disabled {
 }
 .month-toolbar {
   display: grid;
-  grid-template-columns: 46px 1fr 46px 58px;
-  gap: 8px;
+  grid-template-columns: 40px 1fr 40px 52px;
+  gap: 6px;
   align-items: center;
-  margin: 22px 3px 14px;
+  margin: 12px 1px 8px;
 }
 .month-toolbar button {
-  height: 44px;
+  height: 36px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
-  font-size: 28px;
+  font-size: 22px;
   cursor: pointer;
 }
 .month-toolbar h2 {
   text-align: center;
-  font-size: 24px;
+  font-size: 20px;
   letter-spacing: -1px;
   margin: 0;
 }
 .month-toolbar .today-button {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
 }
 .weekday-row {
@@ -778,22 +778,7 @@ button:disabled {
   border-radius: 9px;
 }
 .day-cell.today {
-  z-index: 1;
-  border: 1px solid #76a7f4;
   background: linear-gradient(145deg, #eef5ff, #dceaff);
-  box-shadow: inset 0 0 0 1px rgba(20, 104, 239, 0.08);
-  border-radius: 9px;
-}
-.day-cell.today > span:first-child {
-  min-width: 24px;
-  height: 24px;
-  padding: 0 4px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  color: #fff !important;
-  background: var(--blue);
-  font-weight: 800;
 }
 .day-cell.focused > span:first-child {
   color: var(--green-dark);
@@ -1113,6 +1098,15 @@ button:disabled {
 .saved-duty > small {
   color: var(--muted);
   line-height: 1.45;
+}
+.saved-duty > .korea-time {
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 9px;
+  color: #245ba9;
+  background: #edf4ff;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .duty-body {
@@ -2218,20 +2212,20 @@ button:disabled {
   }
   .month-toolbar {
     flex: 0 0 auto;
-    grid-template-columns: 38px 1fr 38px 49px;
-    gap: 6px;
-    margin: 9px 0 5px;
+    grid-template-columns: 34px 1fr 34px 44px;
+    gap: 5px;
+    margin: 4px 0 2px;
   }
   .month-toolbar button {
-    height: 36px;
-    border-radius: 10px;
-    font-size: 23px;
+    height: 30px;
+    border-radius: 9px;
+    font-size: 18px;
   }
   .month-toolbar h2 {
-    font-size: 20px;
+    font-size: 17px;
   }
   .month-toolbar .today-button {
-    font-size: 12px;
+    font-size: 11px;
   }
   .weekday-row {
     flex: 0 0 auto;
@@ -2254,11 +2248,6 @@ button:disabled {
   .day-cell > span:first-child {
     font-size: 12px;
     line-height: 1;
-  }
-  .day-cell.today > span:first-child {
-    min-width: 18px;
-    height: 18px;
-    font-size: 11px;
   }
   .event-pill {
     width: calc(100% - 2px);
@@ -2328,10 +2317,10 @@ button:disabled {
     font-size: 9px;
   }
   .month-toolbar {
-    grid-template-columns: 42px 1fr 42px 52px;
+    grid-template-columns: 32px 1fr 32px 42px;
   }
   .month-toolbar h2 {
-    font-size: 21px;
+    font-size: 16px;
   }
   .airport-time-pair {
     grid-template-columns: 1fr;
