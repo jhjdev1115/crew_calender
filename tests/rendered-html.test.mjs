@@ -42,30 +42,32 @@ test("ships the finished app without starter preview dependencies", async () => 
   await access(new URL("../drizzle/0000_calm_zeigeist.sql", import.meta.url));
 });
 
-test("ships AI roster PDF analysis and bulk import", async () => {
-  const [page, importRoute, dutiesRoute] = await Promise.all([
+test("ships private local roster PDF analysis and bulk import", async () => {
+  const [page, importRoute, dutiesRoute, localParser, tokenParser] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/roster/import/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/duties/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/roster-local-parser.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/roster-token-parser.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /AI 로스터 분석/);
-  assert.match(page, /\/api\/roster\/analyze/);
+  assert.match(page, /보안 로스터 분석/);
+  assert.match(page, /analyzeRosterPdfLocally/);
   assert.match(page, /\/api\/roster\/import/);
-  assert.match(page, /공항별 현지 시각/);
+  assert.match(page, /한국 시간 ·/);
   assert.match(importRoute, /body\.items\.flatMap/);
-  assert.match(importRoute, /date-only/);
+  assert.match(importRoute, /suppliedEndAt/);
+  assert.match(importRoute, /clean\(item\.flightNo/);
   assert.match(importRoute, /incomplete/);
   assert.match(page, /시작 정보 없음/);
-  const analyzeRoute = await readFile(
-    new URL("../app/api/roster/analyze/route.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(analyzeRoute, /Do not create layover items/);
-  assert.doesNotMatch(analyzeRoute, /"layover",/);
+  assert.match(localParser, /getDocument/);
+  assert.match(localParser, /wipeBytes/);
+  assert.match(tokenParser, /flight\.flightNo = flightNo/);
+  assert.match(tokenParser, /flight\.startAt/);
+  assert.match(tokenParser, /flight\.endAt/);
   assert.match(dutiesRoute, /COALESCE\(end_date, start_date\)/);
   assert.match(dutiesRoute, /COALESCE\(substr\(end_at/);
-  await access(new URL("../app/api/roster/analyze/route.ts", import.meta.url));
+  await access(new URL("../app/roster-local-parser.ts", import.meta.url));
   await access(new URL("../app/api/roster/import/route.ts", import.meta.url));
 });
 

@@ -1,3 +1,5 @@
+import { airportLocalDateTimeToDate } from "./airport-timezones";
+
 export type LocalRosterItem = {
   id: string;
   sourceCode: string;
@@ -87,10 +89,93 @@ function blankItem(type: LocalRosterItem["type"], date: string): LocalRosterItem
   };
 }
 
-function airportTokens(tokens: PdfToken[]) {
-  return tokens
-    .map((token) => token.text.trim().toUpperCase())
-    .filter((text) => /^[A-Z]{3}$/.test(text) && !nonAirportCodes.has(text));
+function normalizedValue(token: PdfToken) {
+  return token.text.trim().toUpperCase();
+}
+
+function timeValue(value: string) {
+  return value.match(/^(\d{2}):(\d{2})(?:\(\+?\d+\))?$/)?.slice(1, 3).join(":") ?? "";
+}
+
+function addDays(date: string, days: number) {
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function arrivalDate(
+  date: string,
+  departureTime: string,
+  arrivalTime: string,
+  departureAirport: string,
+  arrivalAirport: string,
+) {
+  const departure = airportLocalDateTimeToDate(
+    `${date}T${departureTime}`,
+    departureAirport,
+    "airport-local",
+  );
+  for (let dayOffset = 0; dayOffset <= 2; dayOffset += 1) {
+    const candidate = addDays(date, dayOffset);
+    const arrival = airportLocalDateTimeToDate(
+      `${candidate}T${arrivalTime}`,
+      arrivalAirport,
+      "airport-local",
+    );
+    if (!departure || !arrival || arrival.getTime() > departure.getTime()) return candidate;
+  }
+  return addDays(date, 1);
+}
+
+function firstIndexAfter(values: string[], start: number, predicate: (value: string) => boolean) {
+  for (let index = start; index < values.length; index += 1) {
+    if (predicate(values[index])) return index;
+  }
+  return -1;
+}
+
+function parseFlightBlock(block: PdfToken[], date: string) {
+  const values = block.map(normalizedValue);
+  const flightNo = values[0];
+  if (!/^\d{2,4}$/.test(flightNo)) return null;
+
+  const departureIndex = firstIndexAfter(
+    values,
+    1,
+    (value) => /^[A-Z]{3}$/.test(value) && !nonAirportCodes.has(value),
+  );
+  if (departureIndex < 0) return null;
+  const departureTimeIndex = firstIndexAfter(values, departureIndex + 1, (value) => Boolean(timeValue(value)));
+  if (departureTimeIndex < 0) return null;
+  const arrivalIndex = firstIndexAfter(
+    values,
+    departureTimeIndex + 1,
+    (value) => /^[A-Z]{3}$/.test(value) && !nonAirportCodes.has(value),
+  );
+  if (arrivalIndex < 0) return null;
+  const arrivalTimeIndex = firstIndexAfter(values, arrivalIndex + 1, (value) => Boolean(timeValue(value)));
+  if (arrivalTimeIndex < 0) return null;
+
+  const departureTime = timeValue(values[departureTimeIndex]);
+  const arrivalTime = timeValue(values[arrivalTimeIndex]);
+  const departureAirport = values[departureIndex];
+  const arrivalAirport = values[arrivalIndex];
+  const endDate = arrivalDate(
+    date,
+    departureTime,
+    arrivalTime,
+    departureAirport,
+    arrivalAirport,
+  );
+  const flight = blankItem("flight", "");
+  flight.sourceCode = flightNo;
+  flight.flightNo = flightNo;
+  flight.depAirport = departureAirport;
+  flight.arrAirport = arrivalAirport;
+  flight.startAt = `${date}T${departureTime}`;
+  flight.endAt = `${endDate}T${arrivalTime}`;
+  flight.confidence = 0.94;
+  return flight;
 }
 
 export function analyzeRosterTokens(tokens: PdfToken[]): LocalRosterAnalysis {
@@ -132,30 +217,29 @@ export function analyzeRosterTokens(tokens: PdfToken[]): LocalRosterAnalysis {
     for (let index = 0; index < numberIndexes.length; index += 1) {
       const start = numberIndexes[index];
       const end = numberIndexes[index + 1] ?? values.length;
-      const airports = airportTokens(column.slice(start + 1, end));
-      if (airports.length < 2) continue;
-      const flight = blankItem("flight", date);
-      flight.depAirport = airports[0];
-      flight.arrAirport = airports[1];
-      flight.confidence = 0.86;
-      items.push(flight);
+      const flight = parseFlightBlock(column.slice(start, end), date);
+      if (flight) items.push(flight);
     }
   }
 
   const unique = Array.from(
     new Map(
       items.map((item) => [
-        [item.type, item.startDate, item.depAirport, item.arrAirport].join("|"),
+        [item.type, item.startDate || item.startAt, item.flightNo, item.depAirport, item.arrAirport].join("|"),
         item,
       ]),
     ).values(),
-  ).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  ).sort((a, b) =>
+    (a.startDate || a.startAt.slice(0, 10)).localeCompare(
+      b.startDate || b.startAt.slice(0, 10),
+    ),
+  );
 
   if (!unique.length) {
     throw new Error("이 카타르 로스터에서 비행·휴무·교육 일정을 찾지 못했어요.");
   }
 
-  const dates = unique.map((item) => item.startDate);
+  const dates = unique.map((item) => item.startDate || item.startAt.slice(0, 10));
   const counts = unique.reduce(
     (acc, item) => ({ ...acc, [item.type]: acc[item.type] + 1 }),
     { flight: 0, off: 0, training: 0 },
@@ -164,7 +248,7 @@ export function analyzeRosterTokens(tokens: PdfToken[]): LocalRosterAnalysis {
     summary: `비행 ${counts.flight}개 · 휴무 ${counts.off}개 · 교육 ${counts.training}개`,
     periodStart: dates[0],
     periodEnd: dates[dates.length - 1],
-    timezoneNote: "PDF 원본은 기기 안에서만 읽었으며 날짜·일정 유형·출도착 공항만 추출했어요.",
+    timezoneNote: "PDF 원본은 기기 안에서만 읽었으며 날짜·편명·출도착 공항·현지 시각만 추출했어요.",
     items: unique,
   };
 }

@@ -107,6 +107,7 @@ export async function POST(request: Request) {
       const suppliedStartDate = clean(item.startDate, 10);
       const suppliedEndDate = clean(item.endDate, 10);
       const suppliedStartAt = clean(item.startAt, 16);
+      const suppliedEndAt = clean(item.endAt, 16);
       let startDate = "";
       let endDate = "";
       let startAt = "";
@@ -118,6 +119,10 @@ export async function POST(request: Request) {
           ? suppliedStartAt.slice(0, 10)
           : "";
       endDate = datePattern.test(suppliedEndDate) ? suppliedEndDate : "";
+      startAt = dateTimePattern.test(suppliedStartAt) ? suppliedStartAt : "";
+      endAt = dateTimePattern.test(suppliedEndAt) ? suppliedEndAt : "";
+      if (startAt) startDate = "";
+      if (endAt) endDate = "";
       if (endDate && endDate < startDate) endDate = "";
 
       if (!startDate && !startAt) {
@@ -138,7 +143,7 @@ export async function POST(request: Request) {
         endDate,
         startAt,
         endAt,
-        flightNo: "",
+        flightNo: type === "flight" ? clean(item.flightNo, 12).toUpperCase() : "",
         depAirport,
         arrAirport,
         aircraft: "",

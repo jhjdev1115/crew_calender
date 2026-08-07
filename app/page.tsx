@@ -179,7 +179,7 @@ function dutiesOnDate(duties: Duty[], date: string) {
 }
 function dutyLabel(duty: Duty) {
   if (duty.type === "flight")
-    return `비행 ${duty.dep_airport ?? "출발"} → ${duty.arr_airport ?? "도착"}`;
+    return `비행${duty.flight_no ? ` ${duty.flight_no}` : ""} ${duty.dep_airport ?? "출발"} → ${duty.arr_airport ?? "도착"}`;
   if (duty.type === "layover") return `체류 ${duty.layover_city ?? ""}`.trim();
   return dutyLabels[duty.type];
 }
@@ -241,6 +241,21 @@ function formatKoreanFlightRange(duty: Duty) {
   );
   if (!start) return "";
   return end ? `${start} → ${end}` : start;
+}
+
+function formatLocalFlightRange(duty: Duty) {
+  const sameDate = duty.start_at?.slice(0, 10) === duty.end_at?.slice(0, 10);
+  const start = sameDate
+    ? duty.start_at?.slice(11, 16) ?? ""
+    : duty.start_at?.replace("T", " ") ?? "";
+  const end = sameDate
+    ? duty.end_at?.slice(11, 16) ?? ""
+    : duty.end_at?.replace("T", " ") ?? "";
+  if (!start) return "";
+  const departure = `${duty.dep_airport ?? "출발지"} 현지 ${start}`;
+  return end
+    ? `${departure} → ${duty.arr_airport ?? "도착지"} 현지 ${end}`
+    : departure;
 }
 
 function Mark({
@@ -810,7 +825,7 @@ function DayDetail({
       </div>
       <strong>{dutyLabel(duty)}</strong>
       <span>
-        {formatDutyRange(duty)}
+        {duty.type === "flight" ? formatLocalFlightRange(duty) : formatDutyRange(duty)}
       </span>
       {duty.type === "flight" && formatKoreanFlightRange(duty) && (
         <span className="korea-time">
@@ -1435,7 +1450,7 @@ function RosterImport({
                           <strong>
                             {dutyLabels[item.type]}
                             {item.type === "flight" &&
-                              ` ${item.depAirport || "출발"} → ${item.arrAirport || "도착"}`}
+                              ` ${item.flightNo || ""} ${item.depAirport || "출발"} → ${item.arrAirport || "도착"}`}
                             {item.type === "layover" && ` ${item.layoverCity}`}
                           </strong>
                           <small>
@@ -1529,6 +1544,18 @@ function RosterImport({
                         )}
                         {item.type === "flight" && (
                           <>
+                            <label className="field-label">
+                              편명
+                              <input
+                                maxLength={12}
+                                value={item.flightNo ?? ""}
+                                onChange={(event) =>
+                                  updateItem(item.id, {
+                                    flightNo: event.target.value.toUpperCase(),
+                                  })
+                                }
+                              />
+                            </label>
                             <div className="date-pair">
                               <label className="field-label">
                                 출발 공항
