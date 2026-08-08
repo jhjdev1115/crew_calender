@@ -1,5 +1,5 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "crewsync-web",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -9,6 +9,9 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
+    "deploy:cloudflare": "npm run build && wrangler deploy --config wrangler.jsonc",
+    "db:migrate:cloudflare": "wrangler d1 migrations apply crewsync-production --remote --config wrangler.jsonc",
+    "secrets:cloudflare": "node scripts/configure-cloudflare-secrets.mjs",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
@@ -16,6 +19,8 @@
   "dependencies": {
     "@block65/webcrypto-web-push": "^1.0.2",
     "drizzle-orm": "0.45.2",
+    "firebase": "^12.17.1",
+    "jose": "^6.2.8",
     "next": "16.2.6",
     "pdfjs-dist": "^5.4.624",
     "react": "19.2.6",

@@ -1,4 +1,10 @@
-import { ensureDatabase, getD1, getInvitePepper } from "../../db";
+import { createRemoteJWKSet, jwtVerify } from "jose";
+import {
+  ensureDatabase,
+  getD1,
+  getFirebaseProjectId,
+  getInvitePepper,
+} from "../../db";
 
 export type ApiUser = { userId: string; email: string; displayName: string };
 export type SubscriptionPlan = "free" | "pro";
@@ -10,6 +16,12 @@ export type Subscription = {
   productId: string | null;
   currentPeriodEnd: string | null;
 };
+
+const firebaseKeys = createRemoteJWKSet(
+  new URL(
+    "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com",
+  ),
+);
 
 export async function getSubscription(
   db: D1Database,
@@ -49,7 +61,7 @@ export async function activeFriendCount(db: D1Database, userId: string) {
 export async function prepareRequest(
   request: Request,
 ): Promise<{ user: ApiUser; db: D1Database } | Response> {
-  const user = getRequestUser(request);
+  const user = await getRequestUser(request);
   if (!user)
     return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
   await ensureDatabase();
@@ -72,34 +84,41 @@ export async function prepareRequest(
   return { user, db };
 }
 
-export function getRequestUser(request: Request): ApiUser | null {
-  const userId = request.headers.get("oai-authenticated-user-id");
-  const email = request.headers.get("oai-authenticated-user-email");
-  if (userId && email) {
-    const encoded = request.headers.get("oai-authenticated-user-full-name");
-    let displayName = email.split("@")[0];
-    if (
-      encoded &&
-      request.headers.get("oai-authenticated-user-full-name-encoding") ===
-        "percent-encoded-utf-8"
-    ) {
-      try {
-        displayName = decodeURIComponent(encoded);
-      } catch {
-        /* fall back to email */
-      }
-    }
-    return { userId, email, displayName };
-  }
+export async function getRequestUser(request: Request): Promise<ApiUser | null> {
   const hostname = new URL(request.url).hostname;
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
+  const authorization = request.headers.get("authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") return null;
     return {
       userId: "local-development-user",
       email: "local@crewsync.dev",
       displayName: "지원",
     };
   }
-  return null;
+  const projectId = getFirebaseProjectId() ?? "crewsync-f3dab";
+  try {
+    const { payload } = await jwtVerify(
+      authorization.slice("Bearer ".length),
+      firebaseKeys,
+      {
+        algorithms: ["RS256"],
+        audience: projectId,
+        issuer: `https://securetoken.google.com/${projectId}`,
+      },
+    );
+    const email = typeof payload.email === "string" ? payload.email : null;
+    if (!payload.sub || !email || payload.email_verified !== true) return null;
+    return {
+      userId: payload.sub,
+      email,
+      displayName:
+        typeof payload.name === "string" && payload.name.trim()
+          ? payload.name.trim()
+          : email.split("@")[0],
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function rows<T>(result: D1Result<T>): T[] {

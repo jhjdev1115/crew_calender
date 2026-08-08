@@ -9,6 +9,7 @@ type RuntimeEnv = {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  FIREBASE_PROJECT_ID?: string;
 };
 
 export function getD1(): D1Database {
@@ -31,6 +32,10 @@ export function getOpenAIApiKey(): string | null {
     (typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined) ??
     null
   );
+}
+
+export function getFirebaseProjectId(): string | null {
+  return (env as unknown as RuntimeEnv).FIREBASE_PROJECT_ID ?? null;
 }
 
 export function getVapidKeys() {

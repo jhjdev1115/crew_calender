@@ -72,13 +72,23 @@ test("ships private local roster PDF analysis and bulk import", async () => {
 });
 
 test("requires real sign-in and keeps shared schedules automatically synchronized", async () => {
-  const page = await readFile(
-    new URL("../app/page.tsx", import.meta.url),
-    "utf8",
-  );
+  const [page, authLib, firebaseClient, wrangler] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/_lib.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/firebase-client.ts", import.meta.url), "utf8"),
+    readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
+  ]);
 
-  assert.match(page, /\/signin-with-chatgpt\?return_to=\//);
-  assert.match(page, /ChatGPT로 로그인/);
+  assert.match(page, /Google로 계속하기/);
+  assert.match(page, /createUserWithEmailAndPassword/);
+  assert.match(page, /getIdToken\(\)/);
+  assert.match(page, /onAuthStateChanged/);
+  assert.match(authLib, /jwtVerify/);
+  assert.match(authLib, /securetoken\.google\.com/);
+  assert.doesNotMatch(authLib, /oai-authenticated-user/);
+  assert.match(firebaseClient, /crewsync-f3dab/);
+  assert.match(wrangler, /crewsync-production/);
+  assert.match(wrangler, /FIREBASE_PROJECT_ID/);
   assert.match(page, /window\.setInterval\(sync, 10_000\)/);
   assert.match(page, /visibilitychange/);
   assert.match(page, /window\.addEventListener\("focus"/);

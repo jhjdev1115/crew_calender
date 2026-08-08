@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "crewsync-web",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-08-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "dist/client",
+    "binding": "ASSETS"
+  },
+  "images": {
+    "binding": "IMAGES"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "crewsync-production",
+      "database_id": "ecdbbcd8-9eb3-4f04-92d5-e0d2aa0a54a9",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "FIREBASE_PROJECT_ID": "crewsync-f3dab",
+    "VAPID_SUBJECT": "mailto:jhjdev1115@gmail.com"
+  }
+}

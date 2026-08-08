@@ -7,7 +7,19 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { User } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+} from "firebase/auth";
 import { airportLocalDateTimeToDate } from "./airport-timezones";
+import { firebaseAuth } from "./firebase-client";
 import type { LocalRosterAnalysis } from "./roster-token-parser";
 
 type Screen =
@@ -171,9 +183,14 @@ class ApiRequestError extends Error {
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const token = await firebaseAuth.currentUser?.getIdToken();
   const response = await fetch(url, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {}),
+    },
   });
   const data = (await response.json()) as T & { error?: string };
   if (!response.ok)
@@ -440,6 +457,159 @@ function Onboarding({
         <button className="button button-primary" onClick={onContinue}>
           {buttonLabel}
         </button>
+        <p className="legal">
+          계속하면 <button type="button" onClick={onTerms}>이용약관</button> 및{" "}
+          <button type="button" onClick={onPrivacy}>개인정보처리방침</button>에 동의하게 됩니다.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+function authMessage(error: unknown) {
+  const code =
+    typeof error === "object" && error && "code" in error
+      ? String(error.code)
+      : "";
+  if (code.includes("invalid-credential")) return "이메일 또는 비밀번호를 확인해주세요.";
+  if (code.includes("email-already-in-use")) return "이미 가입된 이메일이에요.";
+  if (code.includes("weak-password")) return "비밀번호는 6자 이상으로 입력해주세요.";
+  if (code.includes("invalid-email")) return "이메일 형식을 확인해주세요.";
+  if (code.includes("popup-closed")) return "Google 로그인이 취소됐어요.";
+  if (code.includes("too-many-requests")) return "요청이 너무 많아요. 잠시 후 다시 시도해주세요.";
+  return error instanceof Error ? error.message : "로그인을 완료하지 못했어요.";
+}
+
+function LoginScreen({
+  onTerms,
+  onPrivacy,
+}: {
+  onTerms: () => void;
+  onPrivacy: () => void;
+}) {
+  const [emailMode, setEmailMode] = useState<"login" | "signup" | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const googleLogin = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+    } catch (error) {
+      setMessage(authMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const emailSubmit = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      if (emailMode === "signup") {
+        const credential = await createUserWithEmailAndPassword(
+          firebaseAuth,
+          email.trim(),
+          password,
+        );
+        await sendEmailVerification(credential.user);
+        await signOut(firebaseAuth);
+        setEmailMode("login");
+        setMessage("인증 메일을 보냈어요. 이메일 인증 후 로그인해주세요.");
+      } else {
+        const credential = await signInWithEmailAndPassword(
+          firebaseAuth,
+          email.trim(),
+          password,
+        );
+        if (!credential.user.emailVerified) {
+          await sendEmailVerification(credential.user);
+          await signOut(firebaseAuth);
+          setMessage("이메일 인증이 필요해요. 인증 메일을 다시 보냈습니다.");
+        }
+      }
+    } catch (error) {
+      setMessage(authMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetPassword = async () => {
+    if (!email.trim()) {
+      setMessage("비밀번호를 재설정할 이메일을 입력해주세요.");
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      await sendPasswordResetEmail(firebaseAuth, email.trim());
+      setMessage("비밀번호 재설정 메일을 보냈어요.");
+    } catch (error) {
+      setMessage(authMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <main className="screen onboarding-screen login-screen">
+      <div className="onboarding-inner">
+        <Logo />
+        <div className="hero-copy login-copy">
+          <h1>서로의 일정을,<br />더 쉽게</h1>
+          <p>안전하게 로그인하고 CrewSync를 시작하세요</p>
+        </div>
+      </div>
+      <div className="auth-actions firebase-auth-actions">
+        {emailMode ? (
+          <div className="email-auth-card">
+            <strong>{emailMode === "signup" ? "이메일로 가입하기" : "이메일로 로그인"}</strong>
+            <input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="이메일"
+              aria-label="이메일"
+            />
+            <input
+              type="password"
+              autoComplete={emailMode === "signup" ? "new-password" : "current-password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="비밀번호 6자 이상"
+              aria-label="비밀번호"
+            />
+            <button
+              className="button button-primary"
+              disabled={busy || !email.trim() || password.length < 6}
+              onClick={emailSubmit}
+            >
+              {busy ? "처리 중…" : emailMode === "signup" ? "가입하기" : "로그인"}
+            </button>
+            <div className="email-auth-links">
+              <button type="button" onClick={() => setEmailMode(emailMode === "signup" ? "login" : "signup")}>
+                {emailMode === "signup" ? "이미 계정이 있어요" : "새 계정 만들기"}
+              </button>
+              {emailMode === "login" && <button type="button" onClick={resetPassword}>비밀번호 재설정</button>}
+              <button type="button" onClick={() => setEmailMode(null)}>다른 방법으로 로그인</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <button className="button button-google" disabled={busy} onClick={googleLogin}>
+              <span className="google-g">G</span>Google로 계속하기
+            </button>
+            <button className="button button-primary" disabled={busy} onClick={() => setEmailMode("login")}>
+              이메일로 계속하기
+            </button>
+          </>
+        )}
+        {message && <p className="auth-message" role="status">{message}</p>}
         <p className="legal">
           계속하면 <button type="button" onClick={onTerms}>이용약관</button> 및{" "}
           <button type="button" onClick={onPrivacy}>개인정보처리방침</button>에 동의하게 됩니다.
@@ -2627,6 +2797,8 @@ export default function Home() {
     useState<"calendar" | "settings">("calendar");
   const [proReturnScreen, setProReturnScreen] = useState<Screen>("settings");
   const [ready, setReady] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [authUser, setAuthUser] = useState<User | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [role, setRole] = useState<Role>("crew");
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -2731,7 +2903,20 @@ export default function Home() {
     );
   }, [displayPreferences]);
 
+  useEffect(
+    () =>
+      onAuthStateChanged(firebaseAuth, (user) => {
+        setAuthUser(user);
+        setAuthRequired(!user);
+        setReady(!user);
+        setAuthReady(true);
+      }),
+    [],
+  );
+
   useEffect(() => {
+    if (!authReady) return;
+    if (!authUser) return;
     let mounted = true;
     (async () => {
       try {
@@ -2743,6 +2928,7 @@ export default function Home() {
           requestJson<{ blocked: BlockedUser[] }>("/api/blocks"),
         ]);
         if (!mounted) return;
+        setAuthRequired(false);
         setProfile(profileData.profile);
         if (profileData.profile.role) {
           setRole(profileData.profile.role);
@@ -2774,7 +2960,7 @@ export default function Home() {
     return () => {
       mounted = false;
     };
-  }, [notify]);
+  }, [authReady, authUser, notify]);
   useEffect(() => {
     if (!ready || !profile?.role) return;
     const timer = window.setTimeout(() => {
@@ -2951,14 +3137,15 @@ export default function Home() {
     await requestJson("/api/account", { method: "DELETE" });
     notify("삭제 요청을 접수했어요.");
     window.setTimeout(() => {
-      window.location.href = "/signout-with-chatgpt?return_to=/";
+      void signOut(firebaseAuth);
     }, 900);
   };
   const logout = () => {
-    window.location.href =
-      window.location.hostname === "localhost"
-        ? "/"
-        : "/signout-with-chatgpt?return_to=/";
+    void signOut(firebaseAuth);
+    setProfile(null);
+    setDuties([]);
+    setPartner({ invite: null, friends: [], friendDuties: [] });
+    setScreen("onboarding");
   };
 
   if (!ready)
@@ -2981,13 +3168,9 @@ export default function Home() {
     return (
       <div className="site-shell">
         <div className="app-frame">
-          <Onboarding
-            buttonLabel="ChatGPT로 로그인"
+          <LoginScreen
             onTerms={() => setScreen("terms")}
             onPrivacy={() => setScreen("privacy")}
-            onContinue={() => {
-              window.location.href = "/signin-with-chatgpt?return_to=/";
-            }}
           />
         </div>
       </div>
