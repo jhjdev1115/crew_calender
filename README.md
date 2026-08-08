@@ -1,86 +1,129 @@
-# vinext-starter
+# CrewSync
 
-[vinext](https://github.com/cloudflare/vinext) 기반의 깔끔한 풀스택 스타터입니다.
-Cloudflare D1과 Drizzle를 선택적으로 사용할 수 있습니다.
+승무원과 친구가 일정을 안전하게 공유하고, 같은 날짜 휴무를 확인하는 캘린더 앱입니다.
+
+스택: [vinext](https://github.com/cloudflare/vinext) · Cloudflare Workers/D1 · Drizzle · Firebase Auth · `pdfjs-dist`
+
+## 주요 기능
+
+- Google / 이메일 Firebase 로그인
+- 승무원 · 파트너 역할 온보딩
+- 월간 캘린더, 일정 등록·수정·삭제
+- **로스터 PDF 기기 내 분석** — PDF 원본을 서버/AI로 올리지 않음
+- 초대 코드로 친구 연동 (무료 최대 5명, Pro는 확장)
+- 친구에게는 요약 일정만 공유 (편명·기종·호텔·메모 제외)
+- 차단 목록, 웹 푸시 알림
+- Pro: 이번 달 비행시간·진행률 통계
+- 이용약관 · 개인정보 · 계정 삭제 요청
 
 ## 사전 요구사항
 
 - Node.js `>=22.13.0`
+- Firebase 프로젝트 (Auth)
+- 로컬/배포용 환경 변수 (아래 참고)
 
 ## 빠른 시작
 
 ```bash
+cp .env.example .env
 npm install
 npm run dev
+```
+
+`.env`에 Firebase·초대 코드·VAPID 값을 채운 뒤, 터미널에 나온 주소로 접속하세요.
+
+```bash
 npm run build
+npm run start
 ```
 
-이 스타터는 `wrangler.jsonc`를 사용하지 않습니다.
+## 환경 변수
 
-## 포함 구성
+로컬은 프로젝트 루트 `.env`를 사용합니다. 예시 키는 `.env.example`에 있습니다.
 
-- 사이트 코드는 `app/`에서 수정합니다
-- `.openai/hosting.json`에 선택적 Sites D1·R2 바인딩을 선언합니다
-- `vite.config.ts`가 선언된 바인딩을 로컬 개발 환경에서 시뮬레이션합니다
-- `db/schema.ts`는 의도적으로 비어 있는 상태로 시작합니다
-- `examples/d1/`에 선택적 D1 예제 화면이 있습니다
-- `drizzle.config.ts`는 필요할 때 로컬 마이그레이션 생성을 지원합니다
+| 변수 | 용도 |
+|------|------|
+| `NEXT_PUBLIC_FIREBASE_*` | 클라이언트 Firebase 설정 |
+| `FIREBASE_PROJECT_ID` | 서버에서 ID 토큰 검증 |
+| `INVITE_PEPPER` | 초대 코드 해시용 비밀값 |
+| `VAPID_*` | 웹 푸시 |
 
-## Workspace 인증 헤더
+프로덕션 시크릿은 Cloudflare 바인딩/시크릿으로 넣습니다.
 
-로그인한 방문자는 `oai-authenticated-user-id`와 `oai-authenticated-user-email` 헤더를 모두 받습니다. Private Site는 모든 방문자가 로그인해야 하고, Public Site는 익명 방문자도 있을 수 있으며 이 경우 두 헤더 모두 없습니다.
-
-사용자 ID는 같은 Site의 같은 사용자에게는 안정적으로 유지되고, Site가 다르면 달라집니다. 이메일과 이름은 표시·연락 용도로 사용합니다.
-
-SIWC로 인증된 workspace 사이트는 사용자의 SIWC 프로필에 비어 있지 않은 `name` claim이 있을 때 `oai-authenticated-user-full-name`도 받을 수 있습니다. 전체 이름은 percent-encoded UTF-8이며, `oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`과 함께 전달됩니다.
-
-전체 이름은 선택 사항으로 다루고, 없을 때는 이메일로 대체하세요:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+npm run secrets:cloudflare
 ```
 
-## 선택적 Dispatch 소유 ChatGPT 로그인
+## 프로젝트 구조
 
-사이트에 선택적 또는 필수 ChatGPT 로그인이 필요할 때 `app/chatgpt-auth.ts`의 바로 사용할 수 있는 헬퍼를 import하세요:
+| 경로 | 설명 |
+|------|------|
+| `app/page.tsx` | 메인 UI |
+| `app/globals.css` | 스타일 |
+| `app/firebase-client.ts` | Firebase 클라이언트 |
+| `app/roster-local-parser.ts` | PDF 로컬 파싱 (pdf.js) |
+| `app/roster-token-parser.ts` | 텍스트 토큰 → 일정 변환 |
+| `app/api/` | duties, invites, blocks, subscription, push 등 |
+| `db/schema.ts` | D1 / Drizzle 스키마 |
+| `drizzle/` | 마이그레이션 |
+| `worker/index.ts` | Worker 엔트리 |
+| `wrangler.jsonc` | Cloudflare 배포 설정 |
 
-- 선택적 로그인 UI에는 `getChatGPTUser()`를 사용합니다.
-- 익명 방문자를 Sign in with ChatGPT로 보내야 하는 서버 렌더 페이지에는 `requireChatGPTUser(returnTo)`를 사용합니다.
-- 브라우저 링크나 액션에는 `chatGPTSignInPath(returnTo)`와 `chatGPTSignOutPath(returnTo)`를 사용합니다.
-- 로그인·로그아웃 후 이동할 목적지로 same-origin 상대 경로 `returnTo`를 전달합니다. 헬퍼가 검증하고 안전하게 인코딩합니다.
-- 보호된 페이지는 요청별 신원 헤더에 의존하므로 `export const dynamic = "force-dynamic"`으로 표시하세요.
+## 로스터 PDF 분석
 
-Dispatch가 `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, OAuth 쿠키, 신원 헤더 주입을 소유합니다. 이 예약 경로용 앱 라우트를 구현하지 마세요. 헬퍼를 import·호출하지 않는 라우트는 익명과 호환됩니다.
+PDF는 **브라우저(기기) 안에서만** 분석합니다.
 
-SIWC는 신원만 확립하며 workspace 멤버십을 증명하지 않습니다. workspace 전역 제한은 Sites 호스팅 플랫폼의 접근 정책 컨트롤을 사용하거나, 서버 측에서 명시적인 멤버십·허용 목록 검사를 강제하세요.
+1. PDF 선택
+2. `pdfjs-dist`로 텍스트 추출
+3. 카타르 스타일 규칙으로 일정 변환
+4. 확인 후 구조화된 일정만 서버 저장
+5. PDF 원본은 DB에 저장하지 않음
 
-계정 페이지, 사용자별 대시보드, 저장된 기록, 현재 ChatGPT 사용자에 묶인 쓰기 액션에는 SIWC를 사용하세요. 공개 콘텐츠는 익명으로 두세요.
+`/api/roster/analyze`는 원본 업로드를 받지 않습니다 (410).  
+저장은 `/api/roster/import`로 구조화된 항목만 보냅니다.
+
+## 친구 공유 범위
+
+**공유됨**
+- 일정 유형 (비행/휴무/대기 등)
+- 날짜·출도착 시각
+- 출발·도착 공항
+- 체류 도시
+
+**공유되지 않음**
+- 편명, 기종, 호텔명, 메모
+
+## 스타일
+
+`app/globals.css`에서 수정합니다.  
+모바일(`max-width: 900px`) 미디어쿼리가 기본값을 덮을 수 있으니 폰 프레임 확인 시 해당 구간도 함께 보세요.
+
+## 배포 (Cloudflare)
+
+```bash
+npm run build
+npm run db:migrate:cloudflare
+npm run deploy:cloudflare
+```
+
+- D1 DB: `crewsync-production` (`wrangler.jsonc`)
+- 마이그레이션 디렉터리: `drizzle/`
 
 ## 유용한 명령어
 
-- `npm run dev`: 로컬 개발 시작
-- `npm run build`: vinext 빌드 결과물 검증
-- `npm test`: 스타터를 빌드하고 렌더된 로딩 스켈레톤 검증
-- `npm run db:generate`: 스키마 변경 후 Drizzle 마이그레이션 생성
+- `npm run dev` — 로컬 개발
+- `npm run build` — 빌드
+- `npm run start` — 빌드 결과 실행
+- `npm test` — 스모크 테스트
+- `npm run lint` — ESLint
+- `npm run db:generate` — Drizzle 마이그레이션 생성
+- `npm run deploy:cloudflare` — Cloudflare 배포
+- `npm run db:migrate:cloudflare` — 원격 D1 마이그레이션
+- `npm run secrets:cloudflare` — 시크릿 설정 도우미
 
-## 더 알아보기
+## 참고
 
-- [vinext 문서](https://github.com/cloudflare/vinext)
-- [Drizzle D1 가이드](https://orm.drizzle.team/docs/get-started/d1-new)
-    
+- [vinext](https://github.com/cloudflare/vinext)
+- [Drizzle D1](https://orm.drizzle.team/docs/get-started/d1-new)
+- [pdf.js](https://github.com/mozilla/pdf.js)
+- [Firebase Auth](https://firebase.google.com/docs/auth)
