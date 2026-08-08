@@ -190,6 +190,8 @@ test("implements every settings destination and persistent user blocking", async
   assert.match(page, /function InformationPage/);
   assert.match(page, /setFriendReturnScreen\(screen === "settings" \? "settings" : "calendar"\)/);
   assert.match(page, /back=\{\(\) => go\(friendReturnScreen\)\}/);
+  assert.match(page, /setProReturnScreen\(screen\)/);
+  assert.match(page, /back=\{\(\) => go\(proReturnScreen\)\}/);
   assert.match(blocksRoute, /INSERT INTO user_blocks/);
   assert.match(blocksRoute, /DELETE FROM user_blocks/);
   assert.match(invitesRoute, /차단된 사용자와는 친구로 등록할 수 없어요/);

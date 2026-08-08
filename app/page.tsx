@@ -2625,6 +2625,7 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>("onboarding");
   const [friendReturnScreen, setFriendReturnScreen] =
     useState<"calendar" | "settings">("calendar");
+  const [proReturnScreen, setProReturnScreen] = useState<Screen>("settings");
   const [ready, setReady] = useState(false);
   const [authRequired, setAuthRequired] = useState(false);
   const [role, setRole] = useState<Role>("crew");
@@ -2668,6 +2669,9 @@ export default function Home() {
   const go = useCallback((next: Screen) => {
     if (next === "link") {
       setFriendReturnScreen(screen === "settings" ? "settings" : "calendar");
+    }
+    if (next === "pro" && screen !== "pro") {
+      setProReturnScreen(screen);
     }
     setScreen(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -3098,7 +3102,7 @@ export default function Home() {
         return (
           <ProPage
             subscription={subscription}
-            back={() => go("settings")}
+            back={() => go(proReturnScreen)}
             notify={notify}
           />
         );
