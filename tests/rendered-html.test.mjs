@@ -85,6 +85,25 @@ test("requires real sign-in and keeps shared schedules automatically synchronize
   assert.match(page, /loadPartner\(\{ silent: true \}\)/);
 });
 
+test("supports multiple friends and friend-specific monthly schedules", async () => {
+  const [page, invitesRoute, styles] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/invites/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /function FriendPage/);
+  assert.match(page, /친구 시간표/);
+  assert.match(page, /partner\.friends\.map/);
+  assert.match(page, /formatLocalFlightRange\(duty\)/);
+  assert.match(page, /formatKoreanFlightRange\(duty\)/);
+  assert.match(invitesRoute, /return Response\.json\(\{ invite, friends, friendDuties, month \}\)/);
+  assert.match(invitesRoute, /ON CONFLICT\(user_low_id, user_high_id\) DO UPDATE/);
+  assert.doesNotMatch(invitesRoute, /이미 활성 연동이 있어요/);
+  assert.match(styles, /\.friend-list/);
+  assert.match(styles, /\.friend-calendar-grid/);
+});
+
 test("fits the full calendar into the mobile viewport with compact flight labels", async () => {
   const [page, styles] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),

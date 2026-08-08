@@ -65,8 +65,18 @@ type NotificationState = {
 };
 type PartnerState = {
   invite: { code_hint?: string; expires_at?: string } | null;
-  connection: Record<string, unknown> | null;
-  partnerDuties: Duty[];
+  friends: FriendProfile[];
+  friendDuties: Duty[];
+};
+type FriendProfile = {
+  connection_id: string;
+  user_id: string;
+  display_name: string;
+  role: Role | null;
+  airline: string | null;
+  base_airport: string | null;
+  schedule_tz: string;
+  linked_at: string;
 };
 type DutyPayload = {
   type: DutyType;
@@ -324,7 +334,7 @@ function BottomNav({
         onClick={() => go("link")}
       >
         <span aria-hidden="true">↗</span>
-        <small>연동</small>
+        <small>친구</small>
       </button>
       <button
         className={active === "settings" ? "active" : ""}
@@ -429,13 +439,13 @@ function RoleSelection({
           >
             <span className="role-icon">{item === "crew" ? "♧" : "♡"}</span>
             <span className="role-copy">
-              <strong>{item === "crew" ? "승무원" : "파트너"}</strong>
+              <strong>{item === "crew" ? "승무원" : "친구"}</strong>
               <span>
                 {item === "crew" ? (
                   <>
                     내 로스터를 등록하고
                     <br />
-                    파트너와 안전하게 공유해요
+                    친구들과 안전하게 공유해요
                   </>
                 ) : (
                   <>
@@ -591,13 +601,13 @@ function CalendarHome({
       role === "partner"
         ? [
             ...duties,
-            ...partner.partnerDuties.map((d) => ({
+            ...partner.friendDuties.map((d) => ({
               ...d,
               source: "partner" as const,
             })),
           ]
         : duties,
-    [duties, partner.partnerDuties, role],
+    [duties, partner.friendDuties, role],
   );
   const byDate = useMemo(() => {
     const map = new Map<string, Duty[]>();
@@ -605,9 +615,10 @@ function CalendarHome({
       map.set(cell.key, dutiesOnDate(allDuties, cell.key));
     return map;
   }, [allDuties, cells]);
-  const partnerName = String(partner.connection?.display_name ?? "파트너");
+  const firstFriend = partner.friends[0];
+  const partnerName = firstFriend?.display_name ?? "친구";
   const flightStats = useMemo(() => {
-    const trackedDuties = role === "crew" ? duties : partner.partnerDuties;
+    const trackedDuties = role === "crew" ? duties : partner.friendDuties;
     const today = todayKey();
     let totalMinutes = 0;
     let completedMinutes = 0;
@@ -625,7 +636,7 @@ function CalendarHome({
         ? Math.min(100, Math.round((completedMinutes / totalMinutes) * 100))
         : 0,
     };
-  }, [duties, month, partner.partnerDuties, role]);
+  }, [duties, month, partner.friendDuties, role]);
   return (
     <main className="screen calendar-screen">
       <section className="calendar-content">
@@ -642,28 +653,32 @@ function CalendarHome({
             {profile.display_name.slice(0, 1)}
           </div>
         </div>
-        {partner.connection ? (
+        {partner.friends.length ? (
           <button className="partner-banner" onClick={() => go("link")}>
             <span className="avatar avatar-medium">
               {partnerName.slice(0, 1)}
             </span>
             <span>
-              <strong>{partnerName}님의 공유 일정</strong>
+              <strong>
+                {partner.friends.length === 1
+                  ? `${partnerName}님의 시간표`
+                  : `친구 ${partner.friends.length}명의 시간표`}
+              </strong>
               <small>
-                {String(partner.connection.airline ?? "연동된 파트너")}
-                {partner.connection.base_airport
-                  ? ` · ${String(partner.connection.base_airport)}`
+                {String(firstFriend?.airline ?? "등록된 친구")}
+                {firstFriend?.base_airport
+                  ? ` · ${String(firstFriend.base_airport)}`
                   : ""}
               </small>
             </span>
-            <em>● 연동 중</em>
+            <em>● 공유 중</em>
             <b>›</b>
           </button>
         ) : (
           <button className="shared-banner" onClick={() => go("link")}>
             <span className="heart-calendar">♥</span>
             <strong>
-              파트너를 연동해 <b>같은 날짜 휴무</b>를 확인하세요
+              친구를 등록하고 <b>서로의 시간표</b>를 확인하세요
             </strong>
             <span>›</span>
           </button>
@@ -851,11 +866,11 @@ function DayDetail({
         ) : (
           <div className="empty-card">이 날 등록된 내 일정이 없어요.</div>
         )}
-        <h2>파트너 일정</h2>
+        <h2>친구 일정</h2>
         {peer.length ? (
           peer.map((d) => card(d, false))
         ) : (
-          <div className="empty-card">공유된 파트너 일정이 없어요.</div>
+          <div className="empty-card">공유된 친구 일정이 없어요.</div>
         )}
       </section>
       <div className="sticky-action">
@@ -1087,7 +1102,7 @@ function DutyForm({
           />
         </label>
         <p className="privacy-note">
-          ▣ 편명, 기종, 호텔명, 메모는 파트너에게 공유되지 않아요
+          ▣ 기종, 호텔명, 메모는 친구에게 공유되지 않아요
         </p>
         {role === "crew" && (
           <button className="text-button" onClick={quick}>
@@ -1608,21 +1623,23 @@ function RosterImport({
   );
 }
 
-function PartnerLink({
-  role,
+function FriendPage({
   partner,
+  month,
   go,
   createInvite,
   acceptInvite,
-  unlink,
+  removeFriend,
+  changeMonth,
   toast,
 }: {
-  role: Role;
   partner: PartnerState;
+  month: string;
   go: (s: Screen) => void;
   createInvite: () => Promise<{ code: string; expiresAt: string }>;
   acceptInvite: (code: string) => Promise<void>;
-  unlink: () => Promise<void>;
+  removeFriend: (friendId: string) => Promise<void>;
+  changeMonth: (delta: number) => void;
   toast: (m: string) => void;
 }) {
   const [code, setCode] = useState("");
@@ -1631,8 +1648,32 @@ function PartnerLink({
     expiresAt: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
-  const connection = partner.connection;
-  const partnerName = String(connection?.display_name ?? "");
+  const [selectedFriendId, setSelectedFriendId] = useState<string | null>(
+    partner.friends[0]?.user_id ?? null,
+  );
+  const selectedFriend =
+    partner.friends.find((friend) => friend.user_id === selectedFriendId) ??
+    partner.friends[0] ??
+    null;
+  const selectedDuties = selectedFriend
+    ? partner.friendDuties.filter((duty) => duty.user_id === selectedFriend.user_id)
+    : [];
+  const cells = useMemo(() => {
+    const [year, mon] = month.split("-").map(Number);
+    const first = new Date(year, mon - 1, 1);
+    const offset = (first.getDay() + 6) % 7;
+    const start = new Date(year, mon - 1, 1 - offset);
+    return Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return {
+        key: dateKey(date),
+        day: date.getDate(),
+        current: date.getMonth() === mon - 1,
+        index,
+      };
+    });
+  }, [month]);
   const create = async () => {
     setBusy(true);
     try {
@@ -1652,133 +1693,142 @@ function PartnerLink({
   };
   return (
     <main className="screen form-screen link-screen">
-      <TopBar title="파트너 연동" onBack={() => go("calendar")} />
+      <TopBar title="친구" onBack={() => go("calendar")} />
       <section className="screen-body link-body">
-        {connection ? (
-          <>
-            <div className="page-intro centered">
-              <h1>{partnerName}님과 연동 중</h1>
-              <p>연동된 일정은 허용된 요약 정보만 공유돼요</p>
-            </div>
-            <article className="connected-card">
-              <div className="avatar avatar-large">
-                {partnerName.slice(0, 1)}
-              </div>
-              <strong>{partnerName}</strong>
+        <div className="page-intro friend-intro">
+          <span>
+            <h1>친구 시간표</h1>
+            <p>등록된 친구를 누르면 이번 달 일정을 볼 수 있어요</p>
+          </span>
+          <b>{partner.friends.length}명</b>
+        </div>
+
+        {partner.friends.length ? (
+          <div className="friend-list" aria-label="등록된 친구">
+            {partner.friends.map((friend) => (
+              <button
+                className={friend.user_id === selectedFriend?.user_id ? "active" : ""}
+                key={friend.user_id}
+                onClick={() => setSelectedFriendId(friend.user_id)}
+              >
+                <span className="avatar avatar-medium">{friend.display_name.slice(0, 1)}</span>
+                <span>
+                  <strong>{friend.display_name}</strong>
+                  <small>
+                    {friend.role === "crew"
+                      ? `${friend.airline ?? "승무원"}${friend.base_airport ? ` · ${friend.base_airport}` : ""}`
+                      : "친구"}
+                  </small>
+                </span>
+                <b>›</b>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-card">아직 등록된 친구가 없어요. 초대 코드로 첫 친구를 추가해보세요.</div>
+        )}
+
+        {selectedFriend && (
+          <section className="friend-calendar-card">
+            <div className="friend-calendar-heading">
               <span>
-                {String(connection.role ?? "partner") === "crew"
-                  ? `${String(connection.airline ?? "Qatar Airways")} · ${String(connection.base_airport ?? "DOH")}`
-                  : "파트너"}
+                <strong>{selectedFriend.display_name}님의 시간표</strong>
+                <small>{formatMonth(month)}</small>
               </span>
               <button
+                disabled={busy}
                 onClick={async () => {
+                  if (!window.confirm(`${selectedFriend.display_name}님을 친구에서 삭제할까요?`)) return;
                   setBusy(true);
                   try {
-                    await unlink();
+                    await removeFriend(selectedFriend.user_id);
+                    setSelectedFriendId(null);
                   } finally {
                     setBusy(false);
                   }
                 }}
-                disabled={busy}
               >
-                연동 해제
+                친구 삭제
               </button>
-            </article>
-          </>
-        ) : (
-          <>
-            <div className="page-intro centered">
-              <h1>
-                {role === "crew"
-                  ? "초대 코드를 공유하세요"
-                  : "초대 코드를 입력하세요"}
-              </h1>
-              <p>코드는 7일 동안 한 번만 사용할 수 있어요</p>
             </div>
-            {role === "crew" && (
-              <>
-                {issued ? (
-                  <article className="invite-card">
-                    <span>내 초대 코드</span>
-                    <strong>{issued.code}</strong>
-                    <p>
-                      {new Date(issued.expiresAt).toLocaleDateString("ko-KR")}
-                      까지
-                    </p>
-                    <div>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(issued.code);
-                          toast("초대 코드를 복사했어요");
-                        }}
-                      >
-                        ▤ 복사
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (navigator.share)
-                            navigator.share({
-                              title: "CrewSync 초대",
-                              text: issued.code,
-                            });
-                          else navigator.clipboard.writeText(issued.code);
-                        }}
-                      >
-                        ⇧ 공유
-                      </button>
-                    </div>
-                  </article>
-                ) : (
-                  <button
-                    className="button button-primary"
-                    disabled={busy}
-                    onClick={create}
-                  >
-                    새 초대 코드 만들기
-                  </button>
-                )}
-                <p className="info-line centered-text">
-                  화면을 나가면 전체 코드는 다시 볼 수 없어요.
-                </p>
-              </>
-            )}
-            <article className="share-info">
-              <h2>연동하면 공유되는 정보</h2>
-              <p>✓ 비행 여부와 출발·도착 공항</p>
-              <p>✓ 출발·도착 시각</p>
-              <p>✓ 체류 도시와 휴무 날짜</p>
-              <div>▣ 편명, 기종, 호텔명, 메모는 공유되지 않아요</div>
-            </article>
-            <div className="code-divider">
-              <span />
-              코드를 받으셨나요?
-              <span />
+            <div className="month-toolbar friend-month-toolbar">
+              <button aria-label="이전 달" onClick={() => changeMonth(-1)}>‹</button>
+              <h2>{formatMonth(month)}</h2>
+              <button aria-label="다음 달" onClick={() => changeMonth(1)}>›</button>
+              <button className="today-button" onClick={() => changeMonth(0)}>오늘</button>
             </div>
-            <input
-              className="code-input"
-              value={code}
-              maxLength={9}
-              onChange={(e) =>
-                setCode(
-                  e.target.value
-                    .toUpperCase()
-                    .replace(/[^A-Z2-9]/g, "")
-                    .replace(/(.{4})/, "$1-")
-                    .slice(0, 9),
-                )
-              }
-              placeholder="ABCD-EFGH"
-              aria-label="초대 코드"
-            />
-            <button
-              className="button button-primary"
-              disabled={code.length < 9 || busy}
-              onClick={accept}
-            >
-              코드 확인 및 연동
-            </button>
-          </>
+            <div className="weekday-row">
+              {["월", "화", "수", "목", "금", "토", "일"].map((day, index) => (
+                <span className={index === 5 ? "sat" : index === 6 ? "sun" : ""} key={day}>{day}</span>
+              ))}
+            </div>
+            <div className="calendar-grid friend-calendar-grid">
+              {cells.map(({ key, day, current, index }) => {
+                const events = dutiesOnDate(selectedDuties, key);
+                return (
+                  <div className={`day-cell ${!current ? "outside" : ""} ${key === todayKey() ? "today" : ""}`} key={key}>
+                    <span className={index % 7 === 5 ? "sat" : index % 7 === 6 ? "sun" : ""}>{day}</span>
+                    {events.slice(0, 1).map((event) => (
+                      <em className={`event-pill event-${event.type}`} key={`${event.id}-${key}`}>{calendarDutyLabel(event)}</em>
+                    ))}
+                    {events.length > 1 && <small className="more-count">+{events.length - 1}</small>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="friend-schedule-list">
+              {selectedDuties.length ? selectedDuties.map((duty) => (
+                <article className={`saved-duty ${duty.type}`} key={duty.id}>
+                  <div><Mark tone={["off", "leave"].includes(duty.type) ? "green" : "blue"}>{dutyLabels[duty.type]}</Mark></div>
+                  <strong>{dutyLabel(duty)}</strong>
+                  <span>{duty.type === "flight" ? formatLocalFlightRange(duty) : formatDutyRange(duty)}</span>
+                  {duty.type === "flight" && formatKoreanFlightRange(duty) && (
+                    <span className="korea-time">한국 시간 · {formatKoreanFlightRange(duty)}</span>
+                  )}
+                </article>
+              )) : <div className="empty-card">이번 달에 공유된 일정이 없어요.</div>}
+            </div>
+          </section>
         )}
+
+        <section className="friend-add-card">
+          <h2>친구 등록</h2>
+          <p>내 코드를 공유하거나 친구에게 받은 코드를 입력하세요.</p>
+          {issued ? (
+            <article className="invite-card">
+              <span>내 초대 코드</span>
+              <strong>{issued.code}</strong>
+              <p>{new Date(issued.expiresAt).toLocaleDateString("ko-KR")}까지</p>
+              <div>
+                <button onClick={() => { navigator.clipboard.writeText(issued.code); toast("초대 코드를 복사했어요"); }}>▤ 복사</button>
+                <button onClick={() => {
+                  if (navigator.share) navigator.share({ title: "CrewSync 친구 초대", text: issued.code });
+                  else navigator.clipboard.writeText(issued.code);
+                }}>⇧ 공유</button>
+              </div>
+            </article>
+          ) : (
+            <button className="button button-outline" disabled={busy} onClick={create}>내 초대 코드 만들기</button>
+          )}
+          <div className="code-divider"><span />친구 코드 입력<span /></div>
+          <input
+            className="code-input"
+            value={code}
+            maxLength={9}
+            onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, "").replace(/(.{4})/, "$1-").slice(0, 9))}
+            placeholder="ABCD-EFGH"
+            aria-label="친구 초대 코드"
+          />
+          <button className="button button-primary" disabled={code.length < 9 || busy} onClick={accept}>친구 등록하기</button>
+        </section>
+
+        <article className="share-info">
+          <h2>친구에게 공유되는 정보</h2>
+          <p>✓ 비행 날짜와 출발·도착 공항</p>
+          <p>✓ 출발·도착 현지 시각과 한국 시각</p>
+          <p>✓ 휴무·교육 등 일정 유형</p>
+          <div>▣ 기종, 호텔명, 메모는 공유되지 않아요</div>
+        </article>
       </section>
       <BottomNav active="link" go={go} />
     </main>
@@ -1918,11 +1968,11 @@ function NotificationSettings({
   };
   const rows: [keyof NotificationState, string, string, string][] = [
     ["mine", "✈", "내 비행 3시간 전", "내 출발 일정을 미리 알려드려요"],
-    ["partnerPre", "⌁", "파트너 비행 3시간 전", "상대의 비행 시작 전 알림"],
+    ["partnerPre", "⌁", "친구 비행 3시간 전", "친구의 비행 시작 전 알림"],
     [
       "partnerPost",
       "⌁",
-      "파트너 비행 종료 예정",
+      "친구 비행 종료 예정",
       "도착 확정이 아닌 예정 시각 안내",
     ],
   ];
@@ -2101,13 +2151,13 @@ function Settings({
           </span>
           <button onClick={() => go("profile")}>프로필 수정</button>
         </article>
-        {section("연동", [
+        {section("친구", [
           {
             icon: "↗",
-            label: "파트너 연동",
-            value: partner.connection
-              ? `${String(partner.connection.display_name)}와 연동 중`
-              : "미연동",
+            label: "친구 관리",
+            value: partner.friends.length
+              ? `${partner.friends.length}명 등록됨`
+              : "등록된 친구 없음",
             action: () => go("link"),
           },
           { icon: "♙", label: "차단 목록", value: "0명" },
@@ -2173,7 +2223,7 @@ function AccountDelete({
           </p>
         </div>
         <div className="danger-info">
-          <p>✓ 파트너 연동이 즉시 해제돼요</p>
+          <p>✓ 모든 친구 연결이 즉시 해제돼요</p>
           <p>✓ 초대 코드와 예약 알림이 취소돼요</p>
           <p>✓ 30일 동안 지원을 통해 복원을 요청할 수 있어요</p>
         </div>
@@ -2226,8 +2276,8 @@ export default function Home() {
   const [duties, setDuties] = useState<Duty[]>([]);
   const [partner, setPartner] = useState<PartnerState>({
     invite: null,
-    connection: null,
-    partnerDuties: [],
+    friends: [],
+    friendDuties: [],
   });
   const [notifications, setNotifications] =
     useState<NotificationState>(defaultNotifications);
@@ -2264,10 +2314,11 @@ export default function Home() {
   );
   const loadPartner = useCallback(async (options: { silent?: boolean } = {}) => {
     try {
-      const data = await requestJson<PartnerState>("/api/invites");
+      const data = await requestJson<PartnerState>(`/api/invites?month=${currentMonth}`);
       setPartner({
         ...data,
-        partnerDuties: (data.partnerDuties ?? []).map((d) => ({
+        friends: data.friends ?? [],
+        friendDuties: (data.friendDuties ?? []).map((d) => ({
           ...d,
           source: "partner",
         })),
@@ -2277,10 +2328,10 @@ export default function Home() {
         notify(
           error instanceof Error
             ? error.message
-            : "연동 정보를 불러오지 못했어요.",
+            : "친구 정보를 불러오지 못했어요.",
         );
     }
-  }, [notify]);
+  }, [currentMonth, notify]);
 
   useEffect(() => {
     let mounted = true;
@@ -2289,7 +2340,7 @@ export default function Home() {
         const [profileData, notificationData, partnerData] = await Promise.all([
           requestJson<{ profile: Profile }>("/api/profile"),
           requestJson<{ settings: NotificationState }>("/api/notifications"),
-          requestJson<PartnerState>("/api/invites"),
+          requestJson<PartnerState>(`/api/invites?month=${monthKey()}`),
         ]);
         if (!mounted) return;
         setProfile(profileData.profile);
@@ -2300,7 +2351,8 @@ export default function Home() {
         setNotifications(notificationData.settings ?? defaultNotifications);
         setPartner({
           ...partnerData,
-          partnerDuties: (partnerData.partnerDuties ?? []).map((d) => ({
+          friends: partnerData.friends ?? [],
+          friendDuties: (partnerData.friendDuties ?? []).map((d) => ({
             ...d,
             source: "partner",
           })),
@@ -2324,10 +2376,10 @@ export default function Home() {
   useEffect(() => {
     if (!ready || !profile?.role) return;
     const timer = window.setTimeout(() => {
-      void loadMonth(currentMonth);
+      void Promise.all([loadMonth(currentMonth), loadPartner()]);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [currentMonth, loadMonth, profile?.role, ready]);
+  }, [currentMonth, loadMonth, loadPartner, profile?.role, ready]);
 
   useEffect(() => {
     if (!ready || authRequired || !profile?.role) return;
@@ -2447,16 +2499,15 @@ export default function Home() {
       body: JSON.stringify({ action: "accept", code }),
     });
     await loadPartner();
-    notify("파트너 연동을 완료했어요.");
+    notify("친구 등록을 완료했어요.");
   };
-  const unlink = async () => {
-    if (!window.confirm("파트너 연동을 해제할까요?")) return;
+  const removeFriend = async (friendId: string) => {
     await requestJson("/api/invites", {
       method: "POST",
-      body: JSON.stringify({ action: "unlink" }),
+      body: JSON.stringify({ action: "remove", friendId }),
     });
     await loadPartner();
-    notify("파트너 연동을 해제했어요.");
+    notify("친구를 삭제했어요.");
   };
   const saveNotifications = async (value: NotificationState) => {
     const data = await requestJson<{ settings: NotificationState }>(
@@ -2552,7 +2603,7 @@ export default function Home() {
           <DayDetail
             date={selectedDate}
             duties={duties}
-            partnerDuties={partner.partnerDuties}
+            partnerDuties={partner.friendDuties}
             back={() => go("calendar")}
             add={() => go("duty")}
             remove={removeDuty}
@@ -2585,13 +2636,14 @@ export default function Home() {
         );
       case "link":
         return (
-          <PartnerLink
-            role={role}
+          <FriendPage
             partner={partner}
+            month={currentMonth}
             go={go}
             createInvite={createInvite}
             acceptInvite={acceptInvite}
-            unlink={unlink}
+            removeFriend={removeFriend}
+            changeMonth={changeMonth}
             toast={notify}
           />
         );
@@ -2633,7 +2685,7 @@ export default function Home() {
         </p>
         <div className="desktop-badges">
           <span>영구 저장</span>
-          <span>1:1 연동</span>
+          <span>친구 시간표 공유</span>
           <span>사용자별 보호</span>
         </div>
       </aside>

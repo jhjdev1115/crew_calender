@@ -111,15 +111,16 @@ function isDue(target: Date | null, now: number) {
   return delta >= 0 && delta <= 10 * 60_000;
 }
 
-async function partnerId(db: D1Database, userId: string) {
-  const row = await db
+async function friendIds(db: D1Database, userId: string) {
+  return rows(
+    await db
     .prepare(
-      `SELECT CASE WHEN c.user_low_id = ? THEN c.user_high_id ELSE c.user_low_id END AS partner_id
-       FROM connections c WHERE c.status = 'active' AND (c.user_low_id = ? OR c.user_high_id = ?) LIMIT 1`,
+      `SELECT CASE WHEN c.user_low_id = ? THEN c.user_high_id ELSE c.user_low_id END AS friend_id
+       FROM connections c WHERE c.status = 'active' AND (c.user_low_id = ? OR c.user_high_id = ?)`,
     )
     .bind(userId, userId, userId)
-    .first<{ partner_id: string }>();
-  return row?.partner_id ?? null;
+    .all<{ friend_id: string }>(),
+  ).map((row) => row.friend_id);
 }
 
 async function flightsFor(db: D1Database, userId: string) {
@@ -168,8 +169,8 @@ export async function dispatchDueForUser(db: D1Database, userId: string) {
       );
     }
   }
-  const peerId = await partnerId(db, userId);
-  if (peerId) {
+  const peerIds = await friendIds(db, userId);
+  for (const peerId of peerIds) {
     for (const duty of await flightsFor(db, peerId)) {
       if (toBool(preferences.partner_flight_pre)) {
         const start = airportLocalDateTimeToDate(
@@ -183,7 +184,7 @@ export async function dispatchDueForUser(db: D1Database, userId: string) {
             db,
             userId,
             {
-              title: "파트너 비행 3시간 전",
+              title: "친구 비행 3시간 전",
               body: hideDetails
                 ? "새 알림이 있어요"
                 : `${duty.dep_airport ?? "출발"} → ${duty.arr_airport ?? "도착"}`,
@@ -204,7 +205,7 @@ export async function dispatchDueForUser(db: D1Database, userId: string) {
             db,
             userId,
             {
-              title: "파트너 비행 종료 예정",
+              title: "친구 비행 종료 예정",
               body: hideDetails
                 ? "새 알림이 있어요"
                 : `${duty.arr_airport ?? "도착지"} 도착 예정 시각이에요`,
@@ -252,7 +253,7 @@ export async function dispatchDueForUser(db: D1Database, userId: string) {
             userId,
             {
               title: "내일은 같은 날짜 휴무",
-              body: hideDetails ? "새 알림이 있어요" : "파트너와 함께 쉬는 날이에요 ♥",
+              body: hideDetails ? "새 알림이 있어요" : "친구와 함께 쉬는 날이에요 ♥",
               tag: `shared-off-${tomorrow}`,
               url: "/",
             },
@@ -268,33 +269,35 @@ export async function notifyPartnerRosterChanged(
   db: D1Database,
   actorUserId: string,
 ) {
-  const peerId = await partnerId(db, actorUserId);
-  if (!peerId) return 0;
-  const preferences = await db
-    .prepare(
-      "SELECT all_enabled, roster_changed, hide_details FROM notification_preferences WHERE user_id = ?",
+  let sent = 0;
+  for (const friendId of await friendIds(db, actorUserId)) {
+    const preferences = await db
+      .prepare(
+        "SELECT all_enabled, roster_changed, hide_details FROM notification_preferences WHERE user_id = ?",
+      )
+      .bind(friendId)
+      .first<Record<string, unknown>>();
+    if (
+      !preferences ||
+      !toBool(preferences.all_enabled) ||
+      !toBool(preferences.roster_changed)
     )
-    .bind(peerId)
-    .first<Record<string, unknown>>();
-  if (
-    !preferences ||
-    !toBool(preferences.all_enabled) ||
-    !toBool(preferences.roster_changed)
-  )
-    return 0;
-  return sendPushToUser(
-    db,
-    peerId,
-    {
-      title: "파트너 일정이 변경됐어요",
-      body: toBool(preferences.hide_details)
-        ? "새 알림이 있어요"
-        : "CrewSync에서 새로운 공유 일정을 확인해보세요.",
-      tag: `roster-changed-${actorUserId}`,
-      url: "/",
-    },
-    `roster-changed:${actorUserId}:${Math.floor(Date.now() / 60_000)}`,
-  );
+      continue;
+    sent += await sendPushToUser(
+      db,
+      friendId,
+      {
+        title: "친구 일정이 변경됐어요",
+        body: toBool(preferences.hide_details)
+          ? "새 알림이 있어요"
+          : "CrewSync에서 새로운 공유 일정을 확인해보세요.",
+        tag: `roster-changed-${actorUserId}`,
+        url: "/",
+      },
+      `roster-changed:${actorUserId}:${Math.floor(Date.now() / 60_000)}`,
+    );
+  }
+  return sent;
 }
 
 export async function dispatchAllDue(db: D1Database) {

@@ -5,10 +5,6 @@ export async function DELETE(request: Request) {
     const context = await prepareRequest(request);
     if (context instanceof Response) return context;
     const now = new Date().toISOString();
-    const membership = await context.db
-      .prepare("SELECT connection_id FROM active_memberships WHERE user_id = ?")
-      .bind(context.user.userId)
-      .first<{ connection_id: string }>();
     await context.db.batch([
       context.db
         .prepare(
@@ -35,16 +31,14 @@ export async function DELETE(request: Request) {
         .bind(now, context.user.userId),
       context.db
         .prepare(
+          "DELETE FROM active_memberships WHERE connection_id IN (SELECT id FROM connections WHERE user_low_id = ? OR user_high_id = ?)",
+        )
+        .bind(context.user.userId, context.user.userId),
+      context.db
+        .prepare(
           "UPDATE connections SET status = 'unlinked', unlinked_at = ? WHERE (user_low_id = ? OR user_high_id = ?) AND status = 'active'",
         )
         .bind(now, context.user.userId, context.user.userId),
-      ...(membership
-        ? [
-            context.db
-              .prepare("DELETE FROM active_memberships WHERE connection_id = ?")
-              .bind(membership.connection_id),
-          ]
-        : []),
     ]);
     return Response.json({ deletionRequestedAt: now });
   } catch (error) {

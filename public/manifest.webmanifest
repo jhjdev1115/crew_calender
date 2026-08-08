@@ -1,7 +1,7 @@
 {
   "name": "CrewSync",
   "short_name": "CrewSync",
-  "description": "승무원과 파트너의 공유 일정 캘린더",
+  "description": "친구들과 함께 보는 승무원 공유 일정 캘린더",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

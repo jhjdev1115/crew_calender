@@ -1658,6 +1658,147 @@ button:disabled {
 .link-body {
   text-align: center;
 }
+.friend-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+}
+.friend-intro h1,
+.friend-intro p {
+  margin-right: 12px;
+}
+.friend-intro > b {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: var(--blue);
+  background: var(--blue-soft);
+  font-size: 13px;
+}
+.friend-list {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 20px;
+}
+.friend-list > button {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 70px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  color: var(--navy);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.friend-list > button.active {
+  border-color: var(--blue);
+  background: linear-gradient(135deg, #fff, #edf4ff);
+  box-shadow: 0 9px 22px rgba(20, 104, 239, 0.1);
+}
+.friend-list > button > span:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+.friend-list strong {
+  font-size: 16px;
+}
+.friend-list small {
+  color: var(--muted);
+}
+.friend-list b {
+  color: #a2abb8;
+  font-size: 25px;
+}
+.friend-calendar-card {
+  margin: 0 -4px 22px;
+  padding: 16px 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  text-align: left;
+  box-shadow: 0 12px 28px rgba(18, 38, 71, 0.06);
+}
+.friend-calendar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.friend-calendar-heading > span {
+  display: grid;
+  gap: 4px;
+}
+.friend-calendar-heading strong {
+  font-size: 18px;
+}
+.friend-calendar-heading small {
+  color: var(--muted);
+}
+.friend-calendar-heading button {
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 10px;
+  color: #d92d3a;
+  background: #fff1f2;
+  font-size: 11px;
+  font-weight: 750;
+}
+.friend-month-toolbar {
+  margin-top: 16px;
+}
+.friend-calendar-grid .day-cell {
+  height: 62px;
+  padding-top: 6px;
+  cursor: default;
+  gap: 4px;
+}
+.friend-calendar-grid .event-pill {
+  font-size: 9px;
+  padding: 3px 2px;
+  text-align: center;
+}
+.friend-calendar-grid .more-count {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.friend-schedule-list {
+  margin-top: 17px;
+}
+.friend-schedule-list .saved-duty:last-child {
+  margin-bottom: 0;
+}
+.friend-add-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  text-align: left;
+}
+.friend-add-card > h2 {
+  margin: 0 0 6px;
+  font-size: 19px;
+}
+.friend-add-card > p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.friend-add-card > .button-outline {
+  width: 100%;
+}
+.friend-add-card .invite-card,
+.friend-add-card .code-input,
+.friend-add-card .button-primary {
+  width: 100%;
+}
 .invite-card {
   background: linear-gradient(135deg, #f7faff, #edf4ff);
   border: 1px solid #cbdcf9;
