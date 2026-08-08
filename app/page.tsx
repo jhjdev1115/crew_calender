@@ -1678,6 +1678,7 @@ function FriendPage({
   subscription,
   month,
   go,
+  back,
   createInvite,
   acceptInvite,
   removeFriend,
@@ -1689,6 +1690,7 @@ function FriendPage({
   subscription: Subscription;
   month: string;
   go: (s: Screen) => void;
+  back: () => void;
   createInvite: () => Promise<{ code: string; expiresAt: string }>;
   acceptInvite: (code: string) => Promise<void>;
   removeFriend: (friendId: string) => Promise<void>;
@@ -1749,7 +1751,7 @@ function FriendPage({
   };
   return (
     <main className="screen form-screen link-screen">
-      <TopBar title="친구" onBack={() => go("calendar")} />
+      <TopBar title="친구" onBack={back} />
       <section className="screen-body link-body">
         <div className="page-intro friend-intro">
           <span>
@@ -2621,6 +2623,8 @@ function AccountDelete({
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("onboarding");
+  const [friendReturnScreen, setFriendReturnScreen] =
+    useState<"calendar" | "settings">("calendar");
   const [ready, setReady] = useState(false);
   const [authRequired, setAuthRequired] = useState(false);
   const [role, setRole] = useState<Role>("crew");
@@ -2662,9 +2666,12 @@ export default function Home() {
     window.setTimeout(() => setToast(null), 2800);
   }, []);
   const go = useCallback((next: Screen) => {
+    if (next === "link") {
+      setFriendReturnScreen(screen === "settings" ? "settings" : "calendar");
+    }
     setScreen(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+  }, [screen]);
   const loadMonth = useCallback(
     async (month: string, options: { silent?: boolean } = {}) => {
       if (!options.silent) setLoadingDuties(true);
@@ -3078,6 +3085,7 @@ export default function Home() {
             subscription={subscription}
             month={currentMonth}
             go={go}
+            back={() => go(friendReturnScreen)}
             createInvite={createInvite}
             acceptInvite={acceptInvite}
             removeFriend={removeFriend}
