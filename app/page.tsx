@@ -21,6 +21,7 @@ type Screen =
   | "roster"
   | "link"
   | "notifications"
+  | "pro"
   | "settings"
   | "delete";
 type Role = "crew" | "partner";
@@ -63,6 +64,14 @@ type NotificationState = {
   private: boolean;
   notificationTz: string;
 };
+type Subscription = {
+  plan: "free" | "pro";
+  status: "active" | "trialing" | "canceled" | "expired";
+  provider: string | null;
+  productId: string | null;
+  currentPeriodEnd: string | null;
+};
+const freeFriendLimit = 5;
 type PartnerState = {
   invite: { code_hint?: string; expires_at?: string } | null;
   friends: FriendProfile[];
@@ -567,6 +576,7 @@ function CalendarHome({
   selectDate,
   changeMonth,
   toast,
+  subscription,
 }: {
   role: Role;
   profile: Profile;
@@ -578,6 +588,7 @@ function CalendarHome({
   selectDate: (d: string) => void;
   changeMonth: (delta: number) => void;
   toast: (m: string) => void;
+  subscription: Subscription;
 }) {
   const cells = useMemo(() => {
     const [year, mon] = month.split("-").map(Number);
@@ -693,6 +704,7 @@ function CalendarHome({
             <b>›</b>
           </button>
         )}
+        {subscription.plan === "pro" ? (
         <section className="flight-progress" aria-label="이번 달 비행시간 진행률">
           <div>
             <span>
@@ -714,6 +726,16 @@ function CalendarHome({
           </div>
           <b>{flightStats.percent}%</b>
         </section>
+        ) : (
+          <button className="flight-progress flight-progress-locked" onClick={() => go("pro")}>
+            <span className="pro-lock" aria-hidden="true">✦</span>
+            <span>
+              <strong>이번 달 비행시간 통계</strong>
+              <small>Pro에서 총 비행시간과 진행률을 확인하세요</small>
+            </span>
+            <b>Pro</b>
+          </button>
+        )}
         <div className="month-toolbar">
           <button aria-label="이전 달" onClick={() => changeMonth(-1)}>
             ‹
@@ -1625,6 +1647,7 @@ function RosterImport({
 
 function FriendPage({
   partner,
+  subscription,
   month,
   go,
   createInvite,
@@ -1634,6 +1657,7 @@ function FriendPage({
   toast,
 }: {
   partner: PartnerState;
+  subscription: Subscription;
   month: string;
   go: (s: Screen) => void;
   createInvite: () => Promise<{ code: string; expiresAt: string }>;
@@ -1648,6 +1672,8 @@ function FriendPage({
     expiresAt: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const atFreeFriendLimit =
+    subscription.plan !== "pro" && partner.friends.length >= freeFriendLimit;
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(
     partner.friends[0]?.user_id ?? null,
   );
@@ -1700,7 +1726,7 @@ function FriendPage({
             <h1>친구 시간표</h1>
             <p>등록된 친구를 누르면 이번 달 일정을 볼 수 있어요</p>
           </span>
-          <b>{partner.friends.length}명</b>
+          <b>{subscription.plan === "pro" ? `${partner.friends.length}명` : `${partner.friends.length}/${freeFriendLimit}`}</b>
         </div>
 
         {partner.friends.length ? (
@@ -1793,7 +1819,17 @@ function FriendPage({
 
         <section className="friend-add-card">
           <h2>친구 등록</h2>
-          <p>내 코드를 공유하거나 친구에게 받은 코드를 입력하세요.</p>
+          <p>
+            {atFreeFriendLimit
+              ? "무료 플랜의 친구 5명 한도에 도달했어요. Pro에서는 무제한으로 등록할 수 있어요."
+              : "내 코드를 공유하거나 친구에게 받은 코드를 입력하세요."}
+          </p>
+          {atFreeFriendLimit && (
+            <button className="button button-primary friend-upgrade-button" onClick={() => go("pro")}>
+              Pro로 친구 무제한 등록하기
+            </button>
+          )}
+          {!atFreeFriendLimit && <>
           {issued ? (
             <article className="invite-card">
               <span>내 초대 코드</span>
@@ -1820,6 +1856,7 @@ function FriendPage({
             aria-label="친구 초대 코드"
           />
           <button className="button button-primary" disabled={code.length < 9 || busy} onClick={accept}>친구 등록하기</button>
+          </>}
         </section>
 
         <article className="share-info">
@@ -2097,14 +2134,61 @@ function NotificationSettings({
   );
 }
 
+function ProPage({
+  subscription,
+  back,
+  notify,
+}: {
+  subscription: Subscription;
+  back: () => void;
+  notify: (message: string) => void;
+}) {
+  const isPro = subscription.plan === "pro";
+  return (
+    <main className="screen form-screen pro-screen">
+      <TopBar title="CrewSync Pro" onBack={back} />
+      <section className="screen-body pro-body">
+        <div className="pro-hero">
+          <span>✦</span>
+          <h1>{isPro ? "CrewSync Pro 이용 중" : "일정을 더 여유롭게"}</h1>
+          <p>{isPro ? "모든 Pro 기능이 활성화되어 있어요." : "친구와 비행시간을 더 편하게 관리하세요."}</p>
+        </div>
+        <article className="pro-plan-card">
+          <span>CREWSYNC PRO</span>
+          <strong>월 3,900원</strong>
+          <small>언제든 스토어에서 해지할 수 있어요</small>
+        </article>
+        <section className="pro-benefit-list">
+          <p>✓ 친구 무제한 등록</p>
+          <p>✓ 이번 달 비행시간·진행률 통계</p>
+          <p>✓ PDF 로스터 분석 및 고급 알림 혜택</p>
+        </section>
+        {isPro ? (
+          <button className="button button-outline" onClick={back}>계속 사용하기</button>
+        ) : (
+          <button
+            className="button button-primary"
+            onClick={() => notify("스토어 결제 연결을 준비 중이에요. 연결 후 이 화면에서 바로 구독할 수 있어요.")}
+          >
+            Pro 구독하기
+          </button>
+        )}
+        <p className="pro-footnote">구독 권한은 결제 완료 뒤 서버에서 확인되어 안전하게 적용됩니다.</p>
+      </section>
+    </main>
+  );
+}
+
 function Settings({
   profile,
   partner,
+  subscription,
   go,
   logout,
 }: {
   profile: Profile;
   partner: PartnerState;
+  subscription: Subscription;
   go: (s: Screen) => void;
   logout: () => void;
 }) {
@@ -2151,12 +2235,20 @@ function Settings({
           </span>
           <button onClick={() => go("profile")}>프로필 수정</button>
         </article>
+        {section("구독", [
+          {
+            icon: "✦",
+            label: "CrewSync Pro",
+            value: subscription.plan === "pro" ? "이용 중" : "무료 플랜",
+            action: () => go("pro"),
+          },
+        ])}
         {section("친구", [
           {
             icon: "↗",
             label: "친구 관리",
             value: partner.friends.length
-              ? `${partner.friends.length}명 등록됨`
+              ? `${partner.friends.length}${subscription.plan === "pro" ? "명 등록됨" : `/${freeFriendLimit}명`}`
               : "등록된 친구 없음",
             action: () => go("link"),
           },
@@ -2281,6 +2373,13 @@ export default function Home() {
   });
   const [notifications, setNotifications] =
     useState<NotificationState>(defaultNotifications);
+  const [subscription, setSubscription] = useState<Subscription>({
+    plan: "free",
+    status: "active",
+    provider: null,
+    productId: null,
+    currentPeriodEnd: null,
+  });
   const [currentMonth, setCurrentMonth] = useState(monthKey());
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [loadingDuties, setLoadingDuties] = useState(false);
@@ -2337,10 +2436,11 @@ export default function Home() {
     let mounted = true;
     (async () => {
       try {
-        const [profileData, notificationData, partnerData] = await Promise.all([
+        const [profileData, notificationData, partnerData, subscriptionData] = await Promise.all([
           requestJson<{ profile: Profile }>("/api/profile"),
           requestJson<{ settings: NotificationState }>("/api/notifications"),
           requestJson<PartnerState>(`/api/invites?month=${monthKey()}`),
+          requestJson<{ subscription: Subscription }>("/api/subscription"),
         ]);
         if (!mounted) return;
         setProfile(profileData.profile);
@@ -2349,6 +2449,7 @@ export default function Home() {
           setScreen("calendar");
         }
         setNotifications(notificationData.settings ?? defaultNotifications);
+        setSubscription(subscriptionData.subscription);
         setPartner({
           ...partnerData,
           friends: partnerData.friends ?? [],
@@ -2596,6 +2697,7 @@ export default function Home() {
             selectDate={setSelectedDate}
             changeMonth={changeMonth}
             toast={notify}
+            subscription={subscription}
           />
         );
       case "day":
@@ -2638,6 +2740,7 @@ export default function Home() {
         return (
           <FriendPage
             partner={partner}
+            subscription={subscription}
             month={currentMonth}
             go={go}
             createInvite={createInvite}
@@ -2645,6 +2748,14 @@ export default function Home() {
             removeFriend={removeFriend}
             changeMonth={changeMonth}
             toast={notify}
+          />
+        );
+      case "pro":
+        return (
+          <ProPage
+            subscription={subscription}
+            back={() => go("settings")}
+            notify={notify}
           />
         );
       case "notifications":
@@ -2660,6 +2771,7 @@ export default function Home() {
           <Settings
             profile={safeProfile}
             partner={partner}
+            subscription={subscription}
             go={go}
             logout={logout}
           />

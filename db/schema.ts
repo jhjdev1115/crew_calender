@@ -19,6 +19,26 @@ export const profiles = sqliteTable("profiles", {
   deletionRequestedAt: text("deletion_requested_at"),
 });
 
+export const subscriptions = sqliteTable(
+  "subscriptions",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => profiles.userId),
+    plan: text("plan", { enum: ["free", "pro"] }).notNull().default("free"),
+    status: text("status", {
+      enum: ["active", "trialing", "canceled", "expired"],
+    })
+      .notNull()
+      .default("active"),
+    provider: text("provider"),
+    productId: text("product_id"),
+    currentPeriodEnd: text("current_period_end"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("idx_subscriptions_plan_status").on(table.plan, table.status)],
+);
+
 export const duties = sqliteTable(
   "duties",
   {

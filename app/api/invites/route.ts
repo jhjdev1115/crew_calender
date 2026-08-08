@@ -1,6 +1,8 @@
 import {
   apiError,
   hashInviteCode,
+  activeFriendCount,
+  getSubscription,
   monthBounds,
   normalizeInviteCode,
   prepareRequest,
@@ -99,6 +101,9 @@ export async function POST(request: Request) {
     };
 
     if (body.action === "create") {
+      const subscription = await getSubscription(context.db, context.user.userId);
+      if (subscription.plan !== "pro" && (await activeFriendCount(context.db, context.user.userId)) >= 5)
+        return Response.json({ error: "무료 플랜은 친구 5명까지 등록할 수 있어요. Pro로 업그레이드하면 무제한으로 등록할 수 있어요." }, { status: 403 });
       const raw = makeCode();
       const hash = await hashInviteCode(raw, request);
       const now = new Date();
@@ -153,6 +158,18 @@ export async function POST(request: Request) {
         .first<{ status: string }>();
       if (existing?.status === "active")
         return Response.json({ error: "이미 등록된 친구예요." }, { status: 409 });
+
+      const [currentPlan, issuerPlan, currentCount, issuerCount] = await Promise.all([
+        getSubscription(context.db, context.user.userId),
+        getSubscription(context.db, invite.issuer_user_id),
+        activeFriendCount(context.db, context.user.userId),
+        activeFriendCount(context.db, invite.issuer_user_id),
+      ]);
+      if (
+        (currentPlan.plan !== "pro" && currentCount >= 5) ||
+        (issuerPlan.plan !== "pro" && issuerCount >= 5)
+      )
+        return Response.json({ error: "무료 플랜은 친구 5명까지 등록할 수 있어요. 한쪽이 Pro로 업그레이드한 뒤 다시 시도해 주세요." }, { status: 403 });
 
       await context.db.batch([
         context.db

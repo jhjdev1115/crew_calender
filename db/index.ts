@@ -67,6 +67,15 @@ async function initializeDatabase() {
       updated_at TEXT NOT NULL,
       deletion_requested_at TEXT
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS subscriptions (
+      user_id TEXT PRIMARY KEY REFERENCES profiles(user_id),
+      plan TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free','pro')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','trialing','canceled','expired')),
+      provider TEXT,
+      product_id TEXT,
+      current_period_end TEXT,
+      updated_at TEXT NOT NULL
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS duties (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES profiles(user_id),
@@ -162,6 +171,9 @@ async function initializeDatabase() {
     ),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_connections_high_status ON connections(user_high_id, status)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_subscriptions_plan_status ON subscriptions(plan, status)",
     ),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_active_memberships_connection ON active_memberships(connection_id)",

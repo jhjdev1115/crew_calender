@@ -22,6 +22,13 @@
       "when": 1785929885784,
       "tag": "0002_wet_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1786194928190,
+      "tag": "0003_peaceful_pete_wisdom",
+      "breakpoints": true
     }
   ]
 }

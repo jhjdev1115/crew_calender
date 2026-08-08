@@ -1,6 +1,50 @@
 import { ensureDatabase, getD1, getInvitePepper } from "../../db";
 
 export type ApiUser = { userId: string; email: string; displayName: string };
+export type SubscriptionPlan = "free" | "pro";
+export type SubscriptionStatus = "active" | "trialing" | "canceled" | "expired";
+export type Subscription = {
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  provider: string | null;
+  productId: string | null;
+  currentPeriodEnd: string | null;
+};
+
+export async function getSubscription(
+  db: D1Database,
+  userId: string,
+): Promise<Subscription> {
+  const row = await db
+    .prepare(
+      "SELECT plan, status, provider, product_id, current_period_end FROM subscriptions WHERE user_id = ?",
+    )
+    .bind(userId)
+    .first<Subscription>();
+  if (!row || row.plan !== "pro") {
+    return {
+      plan: "free",
+      status: "active",
+      provider: null,
+      productId: null,
+      currentPeriodEnd: null,
+    };
+  }
+  const validUntil = !row.currentPeriodEnd || row.currentPeriodEnd > new Date().toISOString();
+  return row.status === "active" || (row.status === "trialing" && validUntil)
+    ? row
+    : { ...row, plan: "free" };
+}
+
+export async function activeFriendCount(db: D1Database, userId: string) {
+  const result = await db
+    .prepare(
+      "SELECT COUNT(*) AS count FROM connections WHERE status = 'active' AND (user_low_id = ? OR user_high_id = ?)",
+    )
+    .bind(userId, userId)
+    .first<{ count: number }>();
+  return Number(result?.count ?? 0);
+}
 
 export async function prepareRequest(
   request: Request,
