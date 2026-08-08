@@ -29,6 +29,13 @@
       "when": 1786194928190,
       "tag": "0003_peaceful_pete_wisdom",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1786199936663,
+      "tag": "0004_lowly_joystick",
+      "breakpoints": true
     }
   ]
 }

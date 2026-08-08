@@ -22,6 +22,13 @@ type Screen =
   | "link"
   | "notifications"
   | "pro"
+  | "blocked"
+  | "timezone"
+  | "accessibility"
+  | "terms"
+  | "privacy"
+  | "help"
+  | "about"
   | "settings"
   | "delete";
 type Role = "crew" | "partner";
@@ -86,6 +93,23 @@ type FriendProfile = {
   base_airport: string | null;
   schedule_tz: string;
   linked_at: string;
+};
+type BlockedUser = {
+  user_id: string;
+  display_name: string;
+  airline: string | null;
+  base_airport: string | null;
+  created_at: string;
+};
+type DisplayPreferences = {
+  textSize: "normal" | "large";
+  highContrast: boolean;
+  reduceMotion: boolean;
+};
+const defaultDisplayPreferences: DisplayPreferences = {
+  textSize: "normal",
+  highContrast: false,
+  reduceMotion: false,
 };
 type DutyPayload = {
   type: DutyType;
@@ -368,9 +392,13 @@ function LoadingScreen() {
 
 function Onboarding({
   onContinue,
+  onTerms,
+  onPrivacy,
   buttonLabel = "CrewSync 시작하기",
 }: {
   onContinue: () => void;
+  onTerms?: () => void;
+  onPrivacy?: () => void;
   buttonLabel?: string;
 }) {
   return (
@@ -413,8 +441,8 @@ function Onboarding({
           {buttonLabel}
         </button>
         <p className="legal">
-          계속하면 <a href="#terms">이용약관</a> 및{" "}
-          <a href="#privacy">개인정보처리방침</a>에 동의하게 됩니다.
+          계속하면 <button type="button" onClick={onTerms}>이용약관</button> 및{" "}
+          <button type="button" onClick={onPrivacy}>개인정보처리방침</button>에 동의하게 됩니다.
         </p>
       </div>
     </main>
@@ -1653,6 +1681,7 @@ function FriendPage({
   createInvite,
   acceptInvite,
   removeFriend,
+  blockFriend,
   changeMonth,
   toast,
 }: {
@@ -1663,6 +1692,7 @@ function FriendPage({
   createInvite: () => Promise<{ code: string; expiresAt: string }>;
   acceptInvite: (code: string) => Promise<void>;
   removeFriend: (friendId: string) => Promise<void>;
+  blockFriend: (friendId: string) => Promise<void>;
   changeMonth: (delta: number) => void;
   toast: (m: string) => void;
 }) {
@@ -1761,21 +1791,39 @@ function FriendPage({
                 <strong>{selectedFriend.display_name}님의 시간표</strong>
                 <small>{formatMonth(month)}</small>
               </span>
-              <button
-                disabled={busy}
-                onClick={async () => {
-                  if (!window.confirm(`${selectedFriend.display_name}님을 친구에서 삭제할까요?`)) return;
-                  setBusy(true);
-                  try {
-                    await removeFriend(selectedFriend.user_id);
-                    setSelectedFriendId(null);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                친구 삭제
-              </button>
+              <div className="friend-actions">
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!window.confirm(`${selectedFriend.display_name}님을 친구에서 삭제할까요?`)) return;
+                    setBusy(true);
+                    try {
+                      await removeFriend(selectedFriend.user_id);
+                      setSelectedFriendId(null);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  삭제
+                </button>
+                <button
+                  className="block-friend-button"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!window.confirm(`${selectedFriend.display_name}님을 차단할까요? 서로의 일정이 보이지 않고 다시 친구 등록할 수 없어요.`)) return;
+                    setBusy(true);
+                    try {
+                      await blockFriend(selectedFriend.user_id);
+                      setSelectedFriendId(null);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  차단
+                </button>
+              </div>
             </div>
             <div className="month-toolbar friend-month-toolbar">
               <button aria-label="이전 달" onClick={() => changeMonth(-1)}>‹</button>
@@ -2179,16 +2227,228 @@ function ProPage({
   );
 }
 
+function BlockedListPage({
+  blocked,
+  back,
+  unblock,
+}: {
+  blocked: BlockedUser[];
+  back: () => void;
+  unblock: (userId: string) => Promise<void>;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  return (
+    <main className="screen form-screen">
+      <TopBar title="차단 목록" onBack={back} />
+      <section className="screen-body detail-settings-body">
+        <div className="setting-page-intro">
+          <h1>차단한 사용자</h1>
+          <p>차단한 사용자와는 일정이 공유되지 않고 친구로 다시 등록할 수 없어요.</p>
+        </div>
+        {blocked.length ? (
+          <div className="blocked-list">
+            {blocked.map((user) => (
+              <article key={user.user_id}>
+                <span className="avatar avatar-medium">{user.display_name.slice(0, 1)}</span>
+                <span>
+                  <strong>{user.display_name}</strong>
+                  <small>{[user.airline, user.base_airport].filter(Boolean).join(" · ") || "CrewSync 사용자"}</small>
+                </span>
+                <button
+                  disabled={busyId === user.user_id}
+                  onClick={async () => {
+                    setBusyId(user.user_id);
+                    try { await unblock(user.user_id); } finally { setBusyId(null); }
+                  }}
+                >
+                  {busyId === user.user_id ? "처리 중" : "차단 해제"}
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-card">차단한 사용자가 없어요.</div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+const timezoneOptions = [
+  ["Asia/Qatar", "도하", "UTC+3"],
+  ["Asia/Seoul", "서울", "UTC+9"],
+  ["Europe/London", "런던", "UTC±0"],
+  ["Europe/Paris", "파리", "UTC+1"],
+  ["America/New_York", "뉴욕", "UTC-5"],
+  ["Asia/Tokyo", "도쿄", "UTC+9"],
+] as const;
+
+function TimezonePage({
+  value,
+  back,
+  save,
+}: {
+  value: string;
+  back: () => void;
+  save: (timezone: string) => Promise<void>;
+}) {
+  const [selected, setSelected] = useState(value);
+  const [busy, setBusy] = useState(false);
+  return (
+    <main className="screen form-screen">
+      <TopBar title="일정 기준 시간대" onBack={back} />
+      <section className="screen-body detail-settings-body">
+        <div className="setting-page-intro">
+          <h1>기준 도시를 선택하세요</h1>
+          <p>휴무 날짜와 일정의 기본 표시 기준으로 사용해요. 비행 출발·도착 시간은 각 공항 현지 시간을 그대로 유지합니다.</p>
+        </div>
+        <div className="choice-list">
+          {timezoneOptions.map(([timezone, city, offset]) => (
+            <button className={selected === timezone ? "selected" : ""} key={timezone} onClick={() => setSelected(timezone)}>
+              <span><strong>{city}</strong><small>{timezone}</small></span>
+              <em>{offset}</em>
+              <b>{selected === timezone ? "✓" : ""}</b>
+            </button>
+          ))}
+        </div>
+        <button
+          className="button button-primary"
+          disabled={busy || selected === value}
+          onClick={async () => {
+            setBusy(true);
+            try { await save(selected); } finally { setBusy(false); }
+          }}
+        >
+          {busy ? "저장 중" : "시간대 저장"}
+        </button>
+      </section>
+    </main>
+  );
+}
+
+function AccessibilityPage({
+  value,
+  back,
+  save,
+}: {
+  value: DisplayPreferences;
+  back: () => void;
+  save: (value: DisplayPreferences) => void;
+}) {
+  const update = <K extends keyof DisplayPreferences>(key: K, next: DisplayPreferences[K]) =>
+    save({ ...value, [key]: next });
+  return (
+    <main className="screen form-screen">
+      <TopBar title="화면 및 접근성" onBack={back} />
+      <section className="screen-body detail-settings-body">
+        <div className="setting-page-intro">
+          <h1>편한 화면으로 조정하세요</h1>
+          <p>이 설정은 현재 기기에 저장돼요.</p>
+        </div>
+        <h2>글자 크기</h2>
+        <div className="segmented-control" role="group" aria-label="글자 크기">
+          <button className={value.textSize === "normal" ? "active" : ""} onClick={() => update("textSize", "normal")}>기본</button>
+          <button className={value.textSize === "large" ? "active" : ""} onClick={() => update("textSize", "large")}>크게</button>
+        </div>
+        <div className="setting-card grouped accessibility-options">
+          <div className="setting-row">
+            <SettingIcon>◐</SettingIcon>
+            <span><strong>고대비 표시</strong><small>글자와 테두리를 더 선명하게 표시</small></span>
+            <Toggle label="고대비 표시" on={value.highContrast} setOn={(next) => update("highContrast", next)} />
+          </div>
+          <div className="setting-row">
+            <SettingIcon>◌</SettingIcon>
+            <span><strong>움직임 줄이기</strong><small>화면 전환과 애니메이션 최소화</small></span>
+            <Toggle label="움직임 줄이기" on={value.reduceMotion} setOn={(next) => update("reduceMotion", next)} />
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function InformationPage({
+  kind,
+  back,
+}: {
+  kind: "terms" | "privacy";
+  back: () => void;
+}) {
+  const privacy = kind === "privacy";
+  return (
+    <main className="screen form-screen info-document-screen">
+      <TopBar title={privacy ? "개인정보처리방침" : "이용약관"} onBack={back} />
+      <article className="screen-body info-document">
+        <p className="document-date">시행일: 2026년 8월 8일</p>
+        <h1>{privacy ? "CrewSync 개인정보처리방침" : "CrewSync 이용약관"}</h1>
+        {privacy ? (
+          <>
+            <h2>1. 처리하는 정보</h2><p>계정 식별정보, 표시 이름, 항공사·베이스 공항, 일정 및 친구 연결 정보를 서비스 제공에 필요한 범위에서 처리합니다.</p>
+            <h2>2. 로스터 PDF</h2><p>원본 PDF는 사용자의 브라우저 안에서만 읽고 서버로 전송하지 않습니다. 사용자가 확인하고 등록한 최소 일정 데이터만 저장합니다.</p>
+            <h2>3. 친구 공유</h2><p>친구에게는 비행 여부, 출발·도착 공항과 시각, 휴무·교육 등 허용된 일정만 공유합니다. 기종, 호텔명, 개인 메모는 공유하지 않습니다.</p>
+            <h2>4. 결제 정보</h2><p>구독 결제는 Google Play, Apple 및 RevenueCat이 처리하며 CrewSync는 카드번호를 직접 저장하지 않습니다. 구독 상태와 만료일만 저장할 수 있습니다.</p>
+            <h2>5. 보관 및 삭제</h2><p>계정 삭제 요청 시 공유를 즉시 중단하고 복구 기간 이후 계정과 저장 데이터를 삭제합니다. 법령상 보관 의무가 있는 정보는 해당 기간 동안 분리 보관할 수 있습니다.</p>
+            <h2>6. 문의</h2><p>개인정보 관련 문의는 jhjdev1115@gmail.com으로 보내주세요.</p>
+          </>
+        ) : (
+          <>
+            <h2>1. 서비스 목적</h2><p>CrewSync는 승무원 일정 등록, 로스터 분석, 친구 간 일정 공유와 알림 기능을 제공합니다.</p>
+            <h2>2. 사용자 책임</h2><p>사용자는 업로드하거나 입력하는 로스터와 일정 정보를 이용할 권한이 있어야 하며, 회사 규정과 비밀유지 의무를 준수해야 합니다.</p>
+            <h2>3. 일정 정보</h2><p>자동 분석 결과와 항공편 정보에는 오류가 있을 수 있으므로 실제 근무 전 공식 로스터와 항공사 안내를 확인해야 합니다.</p>
+            <h2>4. Pro 구독</h2><p>Pro 기능은 스토어에 표시된 기간과 가격으로 자동 갱신될 수 있습니다. 해지하더라도 현재 결제 기간까지 이용할 수 있으며 환불은 각 스토어 정책을 따릅니다.</p>
+            <h2>5. 금지 행위</h2><p>타인의 계정·초대 코드 무단 사용, 서비스 방해, 불법 정보 저장 및 다른 사용자의 개인정보 침해를 금지합니다.</p>
+            <h2>6. 계정 종료</h2><p>사용자는 설정에서 계정 삭제를 요청할 수 있습니다. 중대한 약관 위반이나 서비스 악용이 확인되면 이용이 제한될 수 있습니다.</p>
+          </>
+        )}
+      </article>
+    </main>
+  );
+}
+
+function HelpPage({ back }: { back: () => void }) {
+  return (
+    <main className="screen form-screen">
+      <TopBar title="도움말 및 문의" onBack={back} />
+      <section className="screen-body detail-settings-body help-body">
+        <div className="setting-page-intro"><h1>무엇을 도와드릴까요?</h1><p>자주 묻는 내용을 확인하거나 이메일로 문의할 수 있어요.</p></div>
+        <details><summary>PDF가 분석되지 않아요</summary><p>텍스트가 포함된 원본 로스터 PDF를 선택해 주세요. 이미지로만 된 PDF는 일부 항목을 인식하지 못할 수 있습니다.</p></details>
+        <details><summary>친구 일정이 갱신되지 않아요</summary><p>화면을 다시 열거나 새로고침해 주세요. 차단 여부와 친구 연결 상태도 확인해 주세요.</p></details>
+        <details><summary>알림이 오지 않아요</summary><p>설정의 알림 항목과 휴대폰 브라우저 또는 앱의 알림 권한이 모두 켜져 있어야 합니다.</p></details>
+        <details><summary>구독을 복원하고 싶어요</summary><p>스토어 결제가 연결된 앱 버전에서는 Pro 화면의 구매 복원 기능으로 동일한 Google 또는 Apple 계정의 구독을 복원할 수 있습니다.</p></details>
+        <a className="button button-primary support-link" href="mailto:jhjdev1115@gmail.com?subject=CrewSync%20문의">이메일 문의하기</a>
+        <small className="support-email">jhjdev1115@gmail.com</small>
+      </section>
+    </main>
+  );
+}
+
+function AboutPage({ back, notify }: { back: () => void; notify: (message: string) => void }) {
+  return (
+    <main className="screen form-screen">
+      <TopBar title="앱 정보" onBack={back} />
+      <section className="screen-body detail-settings-body about-body">
+        <Logo />
+        <h1>버전 1.0.0</h1>
+        <p>승무원과 친구의 일정을 안전하고 간편하게 공유하는 캘린더입니다.</p>
+        <button className="button button-outline" onClick={() => notify("현재 최신 버전을 사용하고 있어요.")}>업데이트 확인</button>
+        <small>© 2026 CrewSync</small>
+      </section>
+    </main>
+  );
+}
+
 function Settings({
   profile,
   partner,
   subscription,
+  blockedCount,
   go,
   logout,
 }: {
   profile: Profile;
   partner: PartnerState;
   subscription: Subscription;
+  blockedCount: number;
   go: (s: Screen) => void;
   logout: () => void;
 }) {
@@ -2252,18 +2512,18 @@ function Settings({
               : "등록된 친구 없음",
             action: () => go("link"),
           },
-          { icon: "♙", label: "차단 목록", value: "0명" },
+          { icon: "♙", label: "차단 목록", value: `${blockedCount}명`, action: () => go("blocked") },
         ])}
         {section("앱 설정", [
           { icon: "♧", label: "알림 설정", action: () => go("notifications") },
-          { icon: "◷", label: "일정 기준 시간대", value: profile.schedule_tz },
-          { icon: "◎", label: "화면 및 접근성" },
+          { icon: "◷", label: "일정 기준 시간대", value: profile.schedule_tz, action: () => go("timezone") },
+          { icon: "◎", label: "화면 및 접근성", action: () => go("accessibility") },
         ])}
         {section("정보 및 지원", [
-          { icon: "□", label: "이용약관" },
-          { icon: "♢", label: "개인정보처리방침" },
-          { icon: "?", label: "도움말 및 문의" },
-          { icon: "ⓘ", label: "앱 버전", value: "1.0.0" },
+          { icon: "□", label: "이용약관", action: () => go("terms") },
+          { icon: "♢", label: "개인정보처리방침", action: () => go("privacy") },
+          { icon: "?", label: "도움말 및 문의", action: () => go("help") },
+          { icon: "ⓘ", label: "앱 버전", value: "1.0.0", action: () => go("about") },
         ])}
         <button className="logout-button" onClick={logout}>
           로그아웃
@@ -2371,6 +2631,19 @@ export default function Home() {
     friends: [],
     friendDuties: [],
   });
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [displayPreferences, setDisplayPreferences] =
+    useState<DisplayPreferences>(() => {
+      if (typeof window === "undefined") return defaultDisplayPreferences;
+      try {
+        const stored = window.localStorage.getItem("crewsync-display-preferences");
+        return stored
+          ? { ...defaultDisplayPreferences, ...JSON.parse(stored) }
+          : defaultDisplayPreferences;
+      } catch {
+        return defaultDisplayPreferences;
+      }
+    });
   const [notifications, setNotifications] =
     useState<NotificationState>(defaultNotifications);
   const [subscription, setSubscription] = useState<Subscription>({
@@ -2431,16 +2704,32 @@ export default function Home() {
         );
     }
   }, [currentMonth, notify]);
+  const loadBlockedUsers = useCallback(async () => {
+    const data = await requestJson<{ blocked: BlockedUser[] }>("/api/blocks");
+    setBlockedUsers(data.blocked ?? []);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.textSize = displayPreferences.textSize;
+    root.dataset.highContrast = String(displayPreferences.highContrast);
+    root.dataset.reduceMotion = String(displayPreferences.reduceMotion);
+    window.localStorage.setItem(
+      "crewsync-display-preferences",
+      JSON.stringify(displayPreferences),
+    );
+  }, [displayPreferences]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const [profileData, notificationData, partnerData, subscriptionData] = await Promise.all([
+        const [profileData, notificationData, partnerData, subscriptionData, blockedData] = await Promise.all([
           requestJson<{ profile: Profile }>("/api/profile"),
           requestJson<{ settings: NotificationState }>("/api/notifications"),
           requestJson<PartnerState>(`/api/invites?month=${monthKey()}`),
           requestJson<{ subscription: Subscription }>("/api/subscription"),
+          requestJson<{ blocked: BlockedUser[] }>("/api/blocks"),
         ]);
         if (!mounted) return;
         setProfile(profileData.profile);
@@ -2450,6 +2739,7 @@ export default function Home() {
         }
         setNotifications(notificationData.settings ?? defaultNotifications);
         setSubscription(subscriptionData.subscription);
+        setBlockedUsers(blockedData.blocked ?? []);
         setPartner({
           ...partnerData,
           friends: partnerData.friends ?? [],
@@ -2610,6 +2900,35 @@ export default function Home() {
     await loadPartner();
     notify("친구를 삭제했어요.");
   };
+  const blockFriend = async (friendId: string) => {
+    await requestJson("/api/blocks", {
+      method: "POST",
+      body: JSON.stringify({ userId: friendId }),
+    });
+    await Promise.all([loadPartner(), loadBlockedUsers()]);
+    notify("사용자를 차단했어요.");
+  };
+  const unblockUser = async (userId: string) => {
+    await requestJson(`/api/blocks?userId=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+    await loadBlockedUsers();
+    notify("차단을 해제했어요.");
+  };
+  const saveTimezone = async (timezone: string) => {
+    if (!profile?.role) return;
+    const data = await requestJson<{ profile: Profile }>("/api/profile", {
+      method: "PUT",
+      body: JSON.stringify({
+        displayName: profile.display_name,
+        role: profile.role,
+        scheduleTz: timezone,
+      }),
+    });
+    setProfile(data.profile);
+    notify("일정 기준 시간대를 저장했어요.");
+    go("settings");
+  };
   const saveNotifications = async (value: NotificationState) => {
     const data = await requestJson<{ settings: NotificationState }>(
       "/api/notifications",
@@ -2639,12 +2958,22 @@ export default function Home() {
         </div>
       </div>
     );
+  if (authRequired && (screen === "terms" || screen === "privacy"))
+    return (
+      <div className="site-shell">
+        <div className="app-frame">
+          <InformationPage kind={screen} back={() => setScreen("onboarding")} />
+        </div>
+      </div>
+    );
   if (authRequired)
     return (
       <div className="site-shell">
         <div className="app-frame">
           <Onboarding
             buttonLabel="ChatGPT로 로그인"
+            onTerms={() => setScreen("terms")}
+            onPrivacy={() => setScreen("privacy")}
             onContinue={() => {
               window.location.href = "/signin-with-chatgpt?return_to=/";
             }}
@@ -2665,7 +2994,13 @@ export default function Home() {
   const renderScreen = () => {
     switch (screen) {
       case "onboarding":
-        return <Onboarding onContinue={() => go("role")} />;
+        return (
+          <Onboarding
+            onContinue={() => go("role")}
+            onTerms={() => go("terms")}
+            onPrivacy={() => go("privacy")}
+          />
+        );
       case "role":
         return (
           <RoleSelection
@@ -2746,6 +3081,7 @@ export default function Home() {
             createInvite={createInvite}
             acceptInvite={acceptInvite}
             removeFriend={removeFriend}
+            blockFriend={blockFriend}
             changeMonth={changeMonth}
             toast={notify}
           />
@@ -2766,12 +3102,27 @@ export default function Home() {
             save={saveNotifications}
           />
         );
+      case "blocked":
+        return <BlockedListPage blocked={blockedUsers} back={() => go("settings")} unblock={unblockUser} />;
+      case "timezone":
+        return <TimezonePage value={safeProfile.schedule_tz} back={() => go("settings")} save={saveTimezone} />;
+      case "accessibility":
+        return <AccessibilityPage value={displayPreferences} back={() => go("settings")} save={setDisplayPreferences} />;
+      case "terms":
+        return <InformationPage kind="terms" back={() => go(safeProfile.role ? "settings" : "onboarding")} />;
+      case "privacy":
+        return <InformationPage kind="privacy" back={() => go(safeProfile.role ? "settings" : "onboarding")} />;
+      case "help":
+        return <HelpPage back={() => go("settings")} />;
+      case "about":
+        return <AboutPage back={() => go("settings")} notify={notify} />;
       case "settings":
         return (
           <Settings
             profile={safeProfile}
             partner={partner}
             subscription={subscription}
+            blockedCount={blockedUsers.length}
             go={go}
             logout={logout}
           />

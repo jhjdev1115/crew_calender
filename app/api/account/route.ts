@@ -5,8 +5,15 @@ export async function DELETE(request: Request) {
     const context = await prepareRequest(request);
     if (context instanceof Response) return context;
     const now = new Date().toISOString();
-      await context.db.batch([
-        context.db.prepare("DELETE FROM subscriptions WHERE user_id = ?").bind(context.user.userId),
+    await context.db.batch([
+      context.db
+        .prepare("DELETE FROM subscriptions WHERE user_id = ?")
+        .bind(context.user.userId),
+      context.db
+        .prepare(
+          "DELETE FROM user_blocks WHERE blocker_user_id = ? OR blocked_user_id = ?",
+        )
+        .bind(context.user.userId, context.user.userId),
       context.db
         .prepare(
           "DELETE FROM notification_deliveries WHERE subscription_id IN (SELECT id FROM push_subscriptions WHERE user_id = ?)",

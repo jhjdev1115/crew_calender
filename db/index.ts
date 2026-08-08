@@ -128,6 +128,13 @@ async function initializeDatabase() {
       linked_at TEXT NOT NULL,
       unlinked_at TEXT
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS user_blocks (
+      blocker_user_id TEXT NOT NULL REFERENCES profiles(user_id),
+      blocked_user_id TEXT NOT NULL REFERENCES profiles(user_id),
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (blocker_user_id, blocked_user_id),
+      CHECK (blocker_user_id != blocked_user_id)
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS active_memberships (
       user_id TEXT PRIMARY KEY REFERENCES profiles(user_id),
       connection_id TEXT NOT NULL REFERENCES connections(id),
@@ -171,6 +178,9 @@ async function initializeDatabase() {
     ),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_connections_high_status ON connections(user_high_id, status)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks(blocked_user_id)",
     ),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_subscriptions_plan_status ON subscriptions(plan, status)",

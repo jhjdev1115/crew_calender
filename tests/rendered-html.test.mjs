@@ -172,3 +172,25 @@ test("ships encrypted web push subscriptions and scheduled notification delivery
   await access(new URL("../public/crew-sw.js", import.meta.url));
   await access(new URL("../public/manifest.webmanifest", import.meta.url));
 });
+
+test("implements every settings destination and persistent user blocking", async () => {
+  const [page, styles, blocksRoute, invitesRoute, migration] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/blocks/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/invites/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0004_lowly_joystick.sql", import.meta.url), "utf8"),
+  ]);
+
+  for (const screen of ["blocked", "timezone", "accessibility", "terms", "privacy", "help", "about"])
+    assert.match(page, new RegExp(`case "${screen}"`));
+  assert.match(page, /crewsync-display-preferences/);
+  assert.match(page, /function BlockedListPage/);
+  assert.match(page, /function TimezonePage/);
+  assert.match(page, /function InformationPage/);
+  assert.match(blocksRoute, /INSERT INTO user_blocks/);
+  assert.match(blocksRoute, /DELETE FROM user_blocks/);
+  assert.match(invitesRoute, /차단된 사용자와는 친구로 등록할 수 없어요/);
+  assert.match(migration, /CREATE TABLE `user_blocks`/);
+  assert.match(styles, /html\[data-reduce-motion="true"\]/);
+});

@@ -183,6 +183,26 @@ export const connections = sqliteTable(
   ],
 );
 
+export const userBlocks = sqliteTable(
+  "user_blocks",
+  {
+    blockerUserId: text("blocker_user_id")
+      .notNull()
+      .references(() => profiles.userId),
+    blockedUserId: text("blocked_user_id")
+      .notNull()
+      .references(() => profiles.userId),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_user_blocks_pair").on(
+      table.blockerUserId,
+      table.blockedUserId,
+    ),
+    index("idx_user_blocks_blocked").on(table.blockedUserId),
+  ],
+);
+
 export const activeMemberships = sqliteTable(
   "active_memberships",
   {

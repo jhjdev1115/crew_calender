@@ -149,6 +149,23 @@ export async function POST(request: Request) {
       if (!invite || invite.issuer_user_id === context.user.userId)
         return Response.json({ error: "사용할 수 없는 코드예요." }, { status: 422 });
 
+      const blocked = await context.db
+        .prepare(
+          `SELECT 1 FROM user_blocks
+           WHERE (blocker_user_id = ? AND blocked_user_id = ?)
+              OR (blocker_user_id = ? AND blocked_user_id = ?)
+           LIMIT 1`,
+        )
+        .bind(
+          context.user.userId,
+          invite.issuer_user_id,
+          invite.issuer_user_id,
+          context.user.userId,
+        )
+        .first();
+      if (blocked)
+        return Response.json({ error: "차단된 사용자와는 친구로 등록할 수 없어요." }, { status: 403 });
+
       const [low, high] = [context.user.userId, invite.issuer_user_id].sort();
       const existing = await context.db
         .prepare(
