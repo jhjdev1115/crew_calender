@@ -2305,8 +2305,23 @@ button:disabled {
 }
 .help-body summary { font-weight: 800; cursor: pointer; }
 .help-body details p { margin: 12px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
-.support-link { margin-top: 22px; text-decoration: none; }
-.support-email { display: block; margin-top: 10px; color: var(--muted); text-align: center; }
+.support-link {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 38px;
+  box-sizing: border-box;
+  text-decoration: none;
+}
+.support-email {
+  display: block;
+  margin-top: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
 .about-body { padding-top: 70px; text-align: center; }
 .about-body .logo-lockup { justify-content: center; }
 .about-body h1 { margin: 24px 0 8px; font-size: 24px; }
