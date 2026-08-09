@@ -122,9 +122,11 @@ test("fits the full calendar into the mobile viewport with compact flight labels
 
   assert.match(page, /function calendarDutyLabel/);
   assert.match(page, /duty\.type === "flight" \? dutyLabels\.flight/);
-  assert.match(styles, /\.calendar-screen \{\s*height: 100svh/);
+  assert.match(styles, /\.calendar-screen,[\s\S]*?height: 100dvh/);
   assert.match(styles, /grid-template-rows: repeat\(6, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.calendar-screen > \.bottom-nav \{\s*height: 62px/);
+  assert.match(styles, /\.settings-screen > \.screen-body \{[\s\S]*?overflow-y: auto/);
+  assert.match(styles, /height: calc\(62px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(styles, /padding-bottom: env\(safe-area-inset-bottom\)/);
 });
 
 test("highlights today and reports completed monthly flight time", async () => {

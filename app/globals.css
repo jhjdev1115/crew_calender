@@ -2546,10 +2546,33 @@ html[data-reduce-motion="true"] *::after {
   .screen {
     min-height: 100svh;
   }
-  .calendar-screen {
-    height: 100svh;
+  .calendar-screen,
+  .link-screen,
+  .notifications-screen,
+  .settings-screen {
+    height: 100dvh;
     min-height: 100svh;
     overflow: hidden;
+  }
+  .link-screen > .screen-body,
+  .notifications-screen > .screen-body,
+  .settings-screen > .screen-body {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .calendar-screen > .bottom-nav,
+  .link-screen > .bottom-nav,
+  .notifications-screen > .bottom-nav,
+  .settings-screen > .bottom-nav {
+    position: relative;
+    bottom: auto;
+    height: calc(62px + env(safe-area-inset-bottom));
+    min-height: calc(62px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    box-sizing: border-box;
   }
   .calendar-content {
     min-height: 0;
@@ -2719,14 +2742,14 @@ html[data-reduce-motion="true"] *::after {
   .calendar-content > .fab span {
     font-size: 22px;
   }
-  .calendar-screen > .bottom-nav {
-    height: 62px;
-  }
   .calendar-screen > .bottom-nav button > span {
     font-size: 22px;
   }
   .calendar-screen > .bottom-nav small {
     font-size: 10px;
+  }
+  .toast {
+    bottom: calc(74px + env(safe-area-inset-bottom));
   }
 }
 
