@@ -80,7 +80,7 @@ test("requires real sign-in and keeps shared schedules automatically synchronize
   ]);
 
   assert.match(page, /Google로 계속하기/);
-  assert.match(page, /createUserWithEmailAndPassword/);
+  assert.doesNotMatch(page, /createUserWithEmailAndPassword|signInWithEmailAndPassword/);
   assert.match(page, /getIdToken\(\)/);
   assert.match(page, /onAuthStateChanged/);
   assert.match(authLib, /jwtVerify/);
@@ -93,6 +93,26 @@ test("requires real sign-in and keeps shared schedules automatically synchronize
   assert.match(page, /visibilitychange/);
   assert.match(page, /window\.addEventListener\("focus"/);
   assert.match(page, /loadPartner\(\{ silent: true \}\)/);
+});
+
+test("publishes public privacy and complete account deletion flows", async () => {
+  const [page, privacy, deletionPage, accountRoute] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/delete-account/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/account/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(privacy, /CrewSync 개인정보처리방침/);
+  assert.match(privacy, /로스터 PDF 원본은 브라우저 또는 기기 안에서만/);
+  assert.match(deletionPage, /Google 계정으로 본인 확인/);
+  assert.match(deletionPage, /reauthenticateWithPopup/);
+  assert.match(deletionPage, /deleteUser/);
+  assert.match(page, /reauthenticateWithPopup/);
+  assert.match(page, /deleteUser/);
+  assert.match(accountRoute, /DELETE FROM profiles WHERE user_id = \?/);
+  assert.match(accountRoute, /DELETE FROM duties WHERE user_id = \?/);
+  assert.doesNotMatch(accountRoute, /UPDATE profiles SET deletion_requested_at/);
 });
 
 test("supports multiple friends and friend-specific monthly schedules", async () => {

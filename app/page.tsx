@@ -9,12 +9,10 @@ import {
 } from "react";
 import type { User } from "firebase/auth";
 import {
-  createUserWithEmailAndPassword,
+  deleteUser,
   GoogleAuthProvider,
   onAuthStateChanged,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
+  reauthenticateWithPopup,
   signInWithPopup,
   signOut,
 } from "firebase/auth";
@@ -487,9 +485,6 @@ function LoginScreen({
   onTerms: () => void;
   onPrivacy: () => void;
 }) {
-  const [emailMode, setEmailMode] = useState<"login" | "signup" | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -498,56 +493,6 @@ function LoginScreen({
     setMessage(null);
     try {
       await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
-    } catch (error) {
-      setMessage(authMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const emailSubmit = async () => {
-    setBusy(true);
-    setMessage(null);
-    try {
-      if (emailMode === "signup") {
-        const credential = await createUserWithEmailAndPassword(
-          firebaseAuth,
-          email.trim(),
-          password,
-        );
-        await sendEmailVerification(credential.user);
-        await signOut(firebaseAuth);
-        setEmailMode("login");
-        setMessage("인증 메일을 보냈어요. 이메일 인증 후 로그인해주세요.");
-      } else {
-        const credential = await signInWithEmailAndPassword(
-          firebaseAuth,
-          email.trim(),
-          password,
-        );
-        if (!credential.user.emailVerified) {
-          await sendEmailVerification(credential.user);
-          await signOut(firebaseAuth);
-          setMessage("이메일 인증이 필요해요. 인증 메일을 다시 보냈습니다.");
-        }
-      }
-    } catch (error) {
-      setMessage(authMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const resetPassword = async () => {
-    if (!email.trim()) {
-      setMessage("비밀번호를 재설정할 이메일을 입력해주세요.");
-      return;
-    }
-    setBusy(true);
-    setMessage(null);
-    try {
-      await sendPasswordResetEmail(firebaseAuth, email.trim());
-      setMessage("비밀번호 재설정 메일을 보냈어요.");
     } catch (error) {
       setMessage(authMessage(error));
     } finally {
@@ -565,50 +510,9 @@ function LoginScreen({
         </div>
       </div>
       <div className="auth-actions firebase-auth-actions">
-        {emailMode ? (
-          <div className="email-auth-card">
-            <strong>{emailMode === "signup" ? "이메일로 가입하기" : "이메일로 로그인"}</strong>
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="이메일"
-              aria-label="이메일"
-            />
-            <input
-              type="password"
-              autoComplete={emailMode === "signup" ? "new-password" : "current-password"}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="비밀번호 6자 이상"
-              aria-label="비밀번호"
-            />
-            <button
-              className="button button-primary"
-              disabled={busy || !email.trim() || password.length < 6}
-              onClick={emailSubmit}
-            >
-              {busy ? "처리 중…" : emailMode === "signup" ? "가입하기" : "로그인"}
-            </button>
-            <div className="email-auth-links">
-              <button type="button" onClick={() => setEmailMode(emailMode === "signup" ? "login" : "signup")}>
-                {emailMode === "signup" ? "이미 계정이 있어요" : "새 계정 만들기"}
-              </button>
-              {emailMode === "login" && <button type="button" onClick={resetPassword}>비밀번호 재설정</button>}
-              <button type="button" onClick={() => setEmailMode(null)}>다른 방법으로 로그인</button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <button className="button button-google" disabled={busy} onClick={googleLogin}>
-              <span className="google-g">G</span>Google로 계속하기
-            </button>
-            <button className="button button-primary" disabled={busy} onClick={() => setEmailMode("login")}>
-              이메일로 계속하기
-            </button>
-          </>
-        )}
+        <button className="button button-google" disabled={busy} onClick={googleLogin}>
+          <span className="google-g">G</span>Google로 계속하기
+        </button>
         {message && <p className="auth-message" role="status">{message}</p>}
         <p className="legal">
           계속하면 <button type="button" onClick={onTerms}>이용약관</button> 및{" "}
@@ -2724,11 +2628,15 @@ function AccountDelete({
   const [confirm, setConfirm] = useState("");
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const enabled = confirm.trim() === "계정 삭제" && checked;
   const submit = async () => {
     setBusy(true);
+    setError(null);
     try {
       await done();
+    } catch (cause) {
+      setError(authMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -2741,22 +2649,22 @@ function AccountDelete({
         <div className="page-intro centered">
           <h1>정말 계정을 삭제할까요?</h1>
           <p>
-            삭제를 요청하면 즉시 일정 공유가 중단되고
+            Google로 본인 확인 후 계정과 저장된 데이터가
             <br />
-            30일 후 계정과 데이터가 완전히 삭제돼요
+            즉시 영구 삭제되며 복구할 수 없어요
           </p>
         </div>
         <div className="danger-info">
           <p>✓ 모든 친구 연결이 즉시 해제돼요</p>
           <p>✓ 초대 코드와 예약 알림이 취소돼요</p>
-          <p>✓ 30일 동안 지원을 통해 복원을 요청할 수 있어요</p>
+          <p>✓ 프로필과 모든 일정이 완전히 삭제돼요</p>
         </div>
         <div className="backup-info">
           <span>☁</span>
           <span>
             <strong>백업 데이터 안내</strong>
             <small>
-              백업을 포함한 데이터 제거에는 최대 37일이 걸릴 수 있어요
+              결제 사업자가 법령에 따라 보관하는 거래 기록은 제외될 수 있어요
             </small>
           </span>
         </div>
@@ -2776,12 +2684,13 @@ function AccountDelete({
           />
           <span>위 내용을 확인했어요</span>
         </label>
+        {error && <p className="auth-message" role="alert">{error}</p>}
         <button
           className="button button-danger"
           disabled={!enabled || busy}
           onClick={submit}
         >
-          {busy ? "요청 중…" : "삭제 요청하기"}
+          {busy ? "삭제 중…" : "계정 영구 삭제"}
         </button>
         <button className="button button-ghost" onClick={back}>
           취소
@@ -3134,11 +3043,19 @@ export default function Home() {
     setNotifications(data.settings);
   };
   const deleteAccount = async () => {
+    const currentUser = firebaseAuth.currentUser;
+    if (!currentUser) throw new Error("Google 로그인이 필요합니다.");
+    const credential = await reauthenticateWithPopup(
+      currentUser,
+      new GoogleAuthProvider(),
+    );
     await requestJson("/api/account", { method: "DELETE" });
-    notify("삭제 요청을 접수했어요.");
-    window.setTimeout(() => {
-      void signOut(firebaseAuth);
-    }, 900);
+    await deleteUser(credential.user);
+    setProfile(null);
+    setDuties([]);
+    setPartner({ invite: null, friends: [], friendDuties: [] });
+    setScreen("onboarding");
+    notify("CrewSync 계정과 저장된 데이터가 삭제되었습니다.");
   };
   const logout = () => {
     void signOut(firebaseAuth);
