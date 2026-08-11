@@ -5,6 +5,8 @@ import { sendPushToUser } from "../_push";
 type SubscriptionBody = {
   endpoint?: string;
   keys?: { p256dh?: string; auth?: string };
+  platform?: "android" | "ios";
+  token?: string;
 };
 
 export async function GET(request: Request) {
@@ -18,7 +20,15 @@ export async function GET(request: Request) {
       .prepare("SELECT COUNT(*) AS count FROM push_subscriptions WHERE user_id = ?")
       .bind(context.user.userId)
       .first<{ count: number }>();
-    return Response.json({ publicKey: vapid.publicKey, subscribed: Number(row?.count ?? 0) > 0 });
+    const nativeRow = await context.db
+      .prepare("SELECT COUNT(*) AS count FROM native_push_tokens WHERE user_id = ?")
+      .bind(context.user.userId)
+      .first<{ count: number }>();
+    return Response.json({
+      publicKey: vapid.publicKey,
+      subscribed:
+        Number(row?.count ?? 0) > 0 || Number(nativeRow?.count ?? 0) > 0,
+    });
   } catch (error) {
     return apiError(error, "푸시 알림 상태를 불러오지 못했어요.");
   }
@@ -37,6 +47,30 @@ export async function POST(request: Request) {
         url: "/",
       });
       return Response.json({ sent });
+    }
+    if (body.platform === "android" || body.platform === "ios") {
+      const token = String(body.token ?? "").trim();
+      if (token.length < 20 || token.length > 4096) {
+        return Response.json({ error: "유효하지 않은 앱 알림 토큰입니다." }, { status: 422 });
+      }
+      const now = new Date().toISOString();
+      await context.db
+        .prepare(
+          `INSERT INTO native_push_tokens (id, user_id, token, platform, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(token) DO UPDATE SET user_id = excluded.user_id,
+           platform = excluded.platform, updated_at = excluded.updated_at`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          context.user.userId,
+          token,
+          body.platform,
+          now,
+          now,
+        )
+        .run();
+      return Response.json({ subscribed: true });
     }
     const endpoint = String(body.endpoint ?? "");
     const p256dh = String(body.keys?.p256dh ?? "");
@@ -71,6 +105,14 @@ export async function DELETE(request: Request) {
         .bind(context.user.userId),
       context.db
         .prepare("DELETE FROM push_subscriptions WHERE user_id = ?")
+        .bind(context.user.userId),
+      context.db
+        .prepare(
+          "DELETE FROM native_notification_deliveries WHERE token_id IN (SELECT id FROM native_push_tokens WHERE user_id = ?)",
+        )
+        .bind(context.user.userId),
+      context.db
+        .prepare("DELETE FROM native_push_tokens WHERE user_id = ?")
         .bind(context.user.userId),
     ]);
     return Response.json({ subscribed: false });

@@ -36,6 +36,13 @@
       "when": 1786199936663,
       "tag": "0004_lowly_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1786380000000,
+      "tag": "0005_native_push",
+      "breakpoints": true
     }
   ]
 }

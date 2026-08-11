@@ -120,6 +120,41 @@ export const pushSubscriptions = sqliteTable(
   ],
 );
 
+export const nativePushTokens = sqliteTable(
+  "native_push_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => profiles.userId),
+    token: text("token").notNull(),
+    platform: text("platform", { enum: ["android", "ios"] })
+      .notNull()
+      .default("android"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_native_push_token").on(table.token),
+    index("idx_native_push_user").on(table.userId),
+  ],
+);
+
+export const nativeNotificationDeliveries = sqliteTable(
+  "native_notification_deliveries",
+  {
+    id: text("id").primaryKey(),
+    tokenId: text("token_id")
+      .notNull()
+      .references(() => nativePushTokens.id),
+    eventKey: text("event_key").notNull(),
+    sentAt: text("sent_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_native_delivery_once").on(table.tokenId, table.eventKey),
+  ],
+);
+
 export const notificationDeliveries = sqliteTable(
   "notification_deliveries",
   {

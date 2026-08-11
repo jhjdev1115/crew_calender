@@ -4,6 +4,10 @@
 
 스택: [vinext](https://github.com/cloudflare/vinext) · Cloudflare Workers/D1 · Drizzle · Firebase Auth · `pdfjs-dist`
 
+Android 앱은 Capacitor로 구성되어 있으며 패키지명은
+`com.jhjdev.crewsync`입니다. Firebase 등록, 서명키와 AAB 생성 절차는
+[`android/SETUP.md`](android/SETUP.md)를 참고하세요.
+
 ## 주요 기능
 
 - Google / 이메일 Firebase 로그인

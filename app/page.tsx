@@ -8,17 +8,28 @@ import {
   type ReactNode,
 } from "react";
 import type { User } from "firebase/auth";
+import { App } from "@capacitor/app";
 import {
   deleteUser,
-  GoogleAuthProvider,
   onAuthStateChanged,
-  reauthenticateWithPopup,
-  signInWithPopup,
-  signOut,
 } from "firebase/auth";
 import { airportLocalDateTimeToDate } from "./airport-timezones";
 import { firebaseAuth } from "./firebase-client";
-import type { LocalRosterAnalysis } from "./roster-token-parser";
+import {
+  isNativeApp,
+  reauthenticateWithGoogle,
+  signInWithGoogle,
+  signOutEverywhere,
+} from "./native-auth";
+import {
+  getNativePushPermission,
+  installNativeNotificationNavigation,
+  registerNativePush,
+} from "./native-push";
+import type {
+  LocalRosterAnalysis,
+  LocalRosterItem,
+} from "./roster-token-parser";
 
 type Screen =
   | "onboarding"
@@ -492,7 +503,7 @@ function LoginScreen({
     setBusy(true);
     setMessage(null);
     try {
-      await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+      await signInWithGoogle();
     } catch (error) {
       setMessage(authMessage(error));
     } finally {
@@ -679,6 +690,7 @@ function CalendarHome({
   changeMonth,
   toast,
   subscription,
+  primaryFriendId,
 }: {
   role: Role;
   profile: Profile;
@@ -691,6 +703,7 @@ function CalendarHome({
   changeMonth: (delta: number) => void;
   toast: (m: string) => void;
   subscription: Subscription;
+  primaryFriendId: string | null;
 }) {
   const cells = useMemo(() => {
     const [year, mon] = month.split("-").map(Number);
@@ -709,18 +722,31 @@ function CalendarHome({
       };
     });
   }, [month]);
+  const primaryFriend =
+    partner.friends.find((friend) => friend.user_id === primaryFriendId) ??
+    partner.friends[0] ??
+    null;
+  const primaryFriendDuties = useMemo(
+    () =>
+      primaryFriend
+        ? partner.friendDuties.filter(
+            (duty) => duty.user_id === primaryFriend.user_id,
+          )
+        : [],
+    [partner.friendDuties, primaryFriend],
+  );
   const allDuties = useMemo(
     () =>
       role === "partner"
         ? [
             ...duties,
-            ...partner.friendDuties.map((d) => ({
+            ...primaryFriendDuties.map((d) => ({
               ...d,
               source: "partner" as const,
             })),
           ]
         : duties,
-    [duties, partner.friendDuties, role],
+    [duties, primaryFriendDuties, role],
   );
   const byDate = useMemo(() => {
     const map = new Map<string, Duty[]>();
@@ -728,10 +754,9 @@ function CalendarHome({
       map.set(cell.key, dutiesOnDate(allDuties, cell.key));
     return map;
   }, [allDuties, cells]);
-  const firstFriend = partner.friends[0];
-  const partnerName = firstFriend?.display_name ?? "친구";
+  const partnerName = primaryFriend?.display_name ?? "친구";
   const flightStats = useMemo(() => {
-    const trackedDuties = role === "crew" ? duties : partner.friendDuties;
+    const trackedDuties = role === "crew" ? duties : primaryFriendDuties;
     const today = todayKey();
     let totalMinutes = 0;
     let completedMinutes = 0;
@@ -749,7 +774,7 @@ function CalendarHome({
         ? Math.min(100, Math.round((completedMinutes / totalMinutes) * 100))
         : 0,
     };
-  }, [duties, month, partner.friendDuties, role]);
+  }, [duties, month, primaryFriendDuties, role]);
   return (
     <main className="screen calendar-screen">
       <section className="calendar-content">
@@ -766,34 +791,24 @@ function CalendarHome({
             {profile.display_name.slice(0, 1)}
           </div>
         </div>
-        {partner.friends.length ? (
+        {partner.friends.length > 0 && (
           <button className="partner-banner" onClick={() => go("link")}>
             <span className="avatar avatar-medium">
               {partnerName.slice(0, 1)}
             </span>
             <span>
               <strong>
-                {partner.friends.length === 1
-                  ? `${partnerName}님의 시간표`
-                  : `친구 ${partner.friends.length}명의 시간표`}
+                {`${partnerName}님의 시간표`}
               </strong>
               <small>
-                {String(firstFriend?.airline ?? "등록된 친구")}
-                {firstFriend?.base_airport
-                  ? ` · ${String(firstFriend.base_airport)}`
+                {String(primaryFriend?.airline ?? "등록된 친구")}
+                {primaryFriend?.base_airport
+                  ? ` · ${String(primaryFriend.base_airport)}`
                   : ""}
               </small>
             </span>
-            <em>● 공유 중</em>
+            <em>{partner.friends.length > 1 ? `메인 · 친구 ${partner.friends.length}명` : "메인 시간표"}</em>
             <b>›</b>
-          </button>
-        ) : (
-          <button className="shared-banner" onClick={() => go("link")}>
-            <span className="heart-calendar">♥</span>
-            <strong>
-              친구를 등록하고 <b>서로의 시간표</b>를 확인하세요
-            </strong>
-            <span>›</span>
           </button>
         )}
         {role === "crew" && (
@@ -890,13 +905,11 @@ function CalendarHome({
                 <span className={dow === 5 ? "sat" : dow === 6 ? "sun" : ""}>
                   {day}
                 </span>
-                {shared && <i className="tiny-heart">♥</i>}
                 {events.slice(0, 2).map((event) => (
                   <em
                     className={`event-pill event-${event.type}`}
                     key={`${event.id}-${key}`}
                   >
-                    {event.source === "partner" ? "♡ " : ""}
                     {calendarDutyLabel(event)}
                   </em>
                 ))}
@@ -1420,7 +1433,7 @@ function RosterImport({
     }
   };
 
-  const updateItem = (id: string, patch: Partial<RosterItem>) => {
+  const updateItem = (id: string, patch: Partial<LocalRosterItem>) => {
     setAnalysis((current) =>
       current
         ? {
@@ -1567,7 +1580,7 @@ function RosterImport({
             </div>
             <div className="roster-items">
               {analysis.items.map((item) => {
-                const isAllDay = item.type === "off" || item.type === "leave";
+                const isAllDay = item.type === "off";
                 const isEditing = editing === item.id;
                 const confidence = Math.max(
                   0,
@@ -1590,7 +1603,6 @@ function RosterImport({
                             {dutyLabels[item.type]}
                             {item.type === "flight" &&
                               ` ${item.flightNo || ""} ${item.depAirport || "출발"} → ${item.arrAirport || "도착"}`}
-                            {item.type === "layover" && ` ${item.layoverCity}`}
                           </strong>
                           <small>
                             {isAllDay
@@ -1623,15 +1635,17 @@ function RosterImport({
                             value={item.type}
                             onChange={(event) =>
                               updateItem(item.id, {
-                                type: event.target.value as DutyType,
+                                type: event.target.value as LocalRosterItem["type"],
                               })
                             }
                           >
-                            {Object.entries(dutyLabels).map(([value, label]) => (
-                              <option value={value} key={value}>
-                                {label}
-                              </option>
-                            ))}
+                            {(["flight", "off", "training"] as const).map(
+                              (value) => (
+                                <option value={value} key={value}>
+                                  {dutyLabels[value]}
+                                </option>
+                              ),
+                            )}
                           </select>
                         </label>
                         {isAllDay ? (
@@ -1750,6 +1764,8 @@ function RosterImport({
 function FriendPage({
   partner,
   subscription,
+  primaryFriendId,
+  setPrimaryFriend,
   month,
   go,
   back,
@@ -1762,6 +1778,8 @@ function FriendPage({
 }: {
   partner: PartnerState;
   subscription: Subscription;
+  primaryFriendId: string | null;
+  setPrimaryFriend: (friendId: string) => void;
   month: string;
   go: (s: Screen) => void;
   back: () => void;
@@ -1778,10 +1796,11 @@ function FriendPage({
     expiresAt: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const atFreeFriendLimit =
     subscription.plan !== "pro" && partner.friends.length >= freeFriendLimit;
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(
-    partner.friends[0]?.user_id ?? null,
+    primaryFriendId ?? partner.friends[0]?.user_id ?? null,
   );
   const selectedFriend =
     partner.friends.find((friend) => friend.user_id === selectedFriendId) ??
@@ -1790,6 +1809,18 @@ function FriendPage({
   const selectedDuties = selectedFriend
     ? partner.friendDuties.filter((duty) => duty.user_id === selectedFriend.user_id)
     : [];
+  useEffect(() => {
+    if (
+      selectedFriendId &&
+      partner.friends.some((friend) => friend.user_id === selectedFriendId)
+    ) {
+      return;
+    }
+    setSelectedFriendId(primaryFriendId ?? partner.friends[0]?.user_id ?? null);
+  }, [partner.friends, primaryFriendId, selectedFriendId]);
+  useEffect(() => {
+    setScheduleExpanded(false);
+  }, [selectedFriend?.user_id, month]);
   const cells = useMemo(() => {
     const [year, mon] = month.split("-").map(Number);
     const first = new Date(year, mon - 1, 1);
@@ -1852,7 +1883,7 @@ function FriendPage({
                       : "친구"}
                   </small>
                 </span>
-                <b>›</b>
+                <b>{friend.user_id === primaryFriendId ? "메인" : "›"}</b>
               </button>
             ))}
           </div>
@@ -1868,6 +1899,14 @@ function FriendPage({
                 <small>{formatMonth(month)}</small>
               </span>
               <div className="friend-actions">
+                <button
+                  className={`primary-friend-button ${selectedFriend.user_id === primaryFriendId ? "is-primary" : ""}`}
+                  disabled={selectedFriend.user_id === primaryFriendId}
+                  aria-pressed={selectedFriend.user_id === primaryFriendId}
+                  onClick={() => setPrimaryFriend(selectedFriend.user_id)}
+                >
+                  {selectedFriend.user_id === primaryFriendId ? "메인으로 보는 중" : "메인으로 설정"}
+                </button>
                 <button
                   disabled={busy}
                   onClick={async () => {
@@ -1926,18 +1965,28 @@ function FriendPage({
                 );
               })}
             </div>
-            <div className="friend-schedule-list">
-              {selectedDuties.length ? selectedDuties.map((duty) => (
-                <article className={`saved-duty ${duty.type}`} key={duty.id}>
-                  <div><Mark tone={["off", "leave"].includes(duty.type) ? "green" : "blue"}>{dutyLabels[duty.type]}</Mark></div>
-                  <strong>{dutyLabel(duty)}</strong>
-                  <span>{duty.type === "flight" ? formatLocalFlightRange(duty) : formatDutyRange(duty)}</span>
-                  {duty.type === "flight" && formatKoreanFlightRange(duty) && (
-                    <span className="korea-time">한국 시간 · {formatKoreanFlightRange(duty)}</span>
-                  )}
-                </article>
-              )) : <div className="empty-card">이번 달에 공유된 일정이 없어요.</div>}
-            </div>
+            <button
+              className="friend-schedule-toggle"
+              aria-expanded={scheduleExpanded}
+              onClick={() => setScheduleExpanded((expanded) => !expanded)}
+            >
+              <span>상세 일정 {selectedDuties.length}개</span>
+              <b>{scheduleExpanded ? "접기 ▲" : "펼치기 ▼"}</b>
+            </button>
+            {scheduleExpanded && (
+              <div className="friend-schedule-list">
+                {selectedDuties.length ? selectedDuties.map((duty) => (
+                  <article className={`saved-duty ${duty.type}`} key={duty.id}>
+                    <div><Mark tone={["off", "leave"].includes(duty.type) ? "green" : "blue"}>{dutyLabels[duty.type]}</Mark></div>
+                    <strong>{dutyLabel(duty)}</strong>
+                    <span>{duty.type === "flight" ? formatLocalFlightRange(duty) : formatDutyRange(duty)}</span>
+                    {duty.type === "flight" && formatKoreanFlightRange(duty) && (
+                      <span className="korea-time">한국 시간 · {formatKoreanFlightRange(duty)}</span>
+                    )}
+                  </article>
+                )) : <div className="empty-card">이번 달에 공유된 일정이 없어요.</div>}
+              </div>
+            )}
           </section>
         )}
 
@@ -2046,6 +2095,23 @@ function NotificationSettings({
   useEffect(() => {
     let active = true;
     (async () => {
+      if (isNativeApp()) {
+        await installNativeNotificationNavigation();
+        const permission = await getNativePushPermission();
+        if (permission === "denied") {
+          if (active) setPushStatus("denied");
+          return;
+        }
+        const state = await requestJson<{ subscribed: boolean }>("/api/push");
+        if (active) {
+          setPushStatus(
+            permission === "granted" && state.subscribed
+              ? "enabled"
+              : "default",
+          );
+        }
+        return;
+      }
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
         if (active) setPushStatus("unsupported");
         return;
@@ -2073,6 +2139,15 @@ function NotificationSettings({
   const enablePush = async () => {
     setPushBusy(true);
     try {
+      if (isNativeApp()) {
+        const token = await registerNativePush();
+        await requestJson("/api/push", {
+          method: "POST",
+          body: JSON.stringify({ platform: "android", token }),
+        });
+        setPushStatus("enabled");
+        return;
+      }
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setPushStatus(permission === "denied" ? "denied" : "default");
@@ -2717,6 +2792,7 @@ export default function Home() {
     friends: [],
     friendDuties: [],
   });
+  const [primaryFriendId, setPrimaryFriendId] = useState<string | null>(null);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [displayPreferences, setDisplayPreferences] =
     useState<DisplayPreferences>(() => {
@@ -2747,6 +2823,47 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(null), 2800);
   }, []);
+  useEffect(() => {
+    if (!profile?.user_id) {
+      setPrimaryFriendId(null);
+      return;
+    }
+    setPrimaryFriendId(
+      window.localStorage.getItem(
+        `crewsync-primary-friend:${profile.user_id}`,
+      ),
+    );
+  }, [profile?.user_id]);
+  useEffect(() => {
+    if (!profile?.user_id || partner.friends.length === 0) return;
+    if (
+      primaryFriendId &&
+      partner.friends.some((friend) => friend.user_id === primaryFriendId)
+    ) {
+      return;
+    }
+    const fallbackId = partner.friends[0].user_id;
+    setPrimaryFriendId(fallbackId);
+    window.localStorage.setItem(
+      `crewsync-primary-friend:${profile.user_id}`,
+      fallbackId,
+    );
+  }, [partner.friends, primaryFriendId, profile?.user_id]);
+  const selectPrimaryFriend = useCallback(
+    (friendId: string) => {
+      if (!partner.friends.some((friend) => friend.user_id === friendId)) return;
+      setPrimaryFriendId(friendId);
+      if (profile?.user_id) {
+        window.localStorage.setItem(
+          `crewsync-primary-friend:${profile.user_id}`,
+          friendId,
+        );
+      }
+      const friend = partner.friends.find((item) => item.user_id === friendId);
+      notify(`${friend?.display_name ?? "선택한 친구"}님을 메인 시간표로 설정했어요.`);
+    },
+    [notify, partner.friends, profile?.user_id],
+  );
   const go = useCallback((next: Screen) => {
     if (next === "link") {
       setFriendReturnScreen(screen === "settings" ? "settings" : "calendar");
@@ -2757,6 +2874,52 @@ export default function Home() {
     setScreen(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [screen]);
+  useEffect(() => {
+    if (!isNativeApp()) return;
+
+    const listener = App.addListener("backButton", () => {
+      setScreen((current) => {
+        switch (current) {
+          case "calendar":
+          case "onboarding":
+            void App.exitApp();
+            return current;
+          case "role":
+            return "onboarding";
+          case "profile":
+            return profile?.role ? "settings" : "role";
+          case "day":
+          case "duty":
+          case "roster":
+            return "calendar";
+          case "quick":
+            return "duty";
+          case "link":
+            return friendReturnScreen;
+          case "pro":
+            return proReturnScreen;
+          case "terms":
+          case "privacy":
+            return profile?.role ? "settings" : "onboarding";
+          case "notifications":
+          case "blocked":
+          case "timezone":
+          case "accessibility":
+          case "help":
+          case "about":
+          case "delete":
+            return "settings";
+          case "settings":
+            return "calendar";
+        }
+      });
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
+
+    return () => {
+      void listener.then((handle) => handle.remove());
+    };
+  }, [friendReturnScreen, proReturnScreen, profile?.role]);
   const loadMonth = useCallback(
     async (month: string, options: { silent?: boolean } = {}) => {
       if (!options.silent) setLoadingDuties(true);
@@ -3045,10 +3208,7 @@ export default function Home() {
   const deleteAccount = async () => {
     const currentUser = firebaseAuth.currentUser;
     if (!currentUser) throw new Error("Google 로그인이 필요합니다.");
-    const credential = await reauthenticateWithPopup(
-      currentUser,
-      new GoogleAuthProvider(),
-    );
+    const credential = await reauthenticateWithGoogle(currentUser);
     await requestJson("/api/account", { method: "DELETE" });
     await deleteUser(credential.user);
     setProfile(null);
@@ -3058,7 +3218,7 @@ export default function Home() {
     notify("CrewSync 계정과 저장된 데이터가 삭제되었습니다.");
   };
   const logout = () => {
-    void signOut(firebaseAuth);
+    void signOutEverywhere();
     setProfile(null);
     setDuties([]);
     setPartner({ invite: null, friends: [], friendDuties: [] });
@@ -3102,6 +3262,15 @@ export default function Home() {
     schedule_tz: role === "crew" ? "Asia/Qatar" : "Asia/Seoul",
     deletion_requested_at: null,
   };
+  const effectivePrimaryFriendId =
+    partner.friends.find((friend) => friend.user_id === primaryFriendId)?.user_id ??
+    partner.friends[0]?.user_id ??
+    null;
+  const primaryFriendDuties = effectivePrimaryFriendId
+    ? partner.friendDuties.filter(
+        (duty) => duty.user_id === effectivePrimaryFriendId,
+      )
+    : [];
   const renderScreen = () => {
     switch (screen) {
       case "onboarding":
@@ -3144,6 +3313,7 @@ export default function Home() {
             changeMonth={changeMonth}
             toast={notify}
             subscription={subscription}
+            primaryFriendId={effectivePrimaryFriendId}
           />
         );
       case "day":
@@ -3151,7 +3321,7 @@ export default function Home() {
           <DayDetail
             date={selectedDate}
             duties={duties}
-            partnerDuties={partner.friendDuties}
+            partnerDuties={primaryFriendDuties}
             back={() => go("calendar")}
             add={() => go("duty")}
             remove={removeDuty}
@@ -3187,6 +3357,8 @@ export default function Home() {
           <FriendPage
             partner={partner}
             subscription={subscription}
+            primaryFriendId={effectivePrimaryFriendId}
+            setPrimaryFriend={selectPrimaryFriend}
             month={currentMonth}
             go={go}
             back={() => go(friendReturnScreen)}

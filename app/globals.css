@@ -846,36 +846,45 @@ button:disabled {
   color: #ed4f6a;
 }
 .event-pill {
-  display: block;
-  width: calc(100% - 3px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: calc(100% - 6px);
+  min-width: 44px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  border-radius: 5px;
-  padding: 4px 3px;
-  color: #fff;
+  border-radius: 999px;
+  padding: 4px 10px;
   font-style: normal;
   font-size: 10px;
+  font-weight: 750;
   line-height: 1.15;
 }
 .event-flight {
-  background: linear-gradient(90deg, #2369d9, #5e91ea);
+  color: #1849a9;
+  background: #eaf0ff;
 }
 .event-layover {
-  background: linear-gradient(90deg, #45a7aa, #70c3c4);
+  color: #14777b;
+  background: #e3f5f5;
 }
 .event-standby {
-  color: #2868c9;
-  background: linear-gradient(90deg, #d6cff2, #eee9fa);
+  color: #5d4aa1;
+  background: #eeeafd;
 }
 .event-off {
-  background: linear-gradient(90deg, #7fbb39, #a4d062);
+  color: #087a58;
+  background: #e2f5ed;
 }
 .event-leave {
-  background: linear-gradient(90deg, #eb9360, #f3b384);
+  color: #b65d2c;
+  background: #fff0e6;
 }
 .event-training {
-  background: linear-gradient(90deg, #67748b, #909aad);
+  color: #8b5a08;
+  background: #fff3dd;
 }
 .more-count {
   color: var(--muted);
@@ -1869,7 +1878,18 @@ button:disabled {
 }
 .friend-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
+}
+.friend-actions .primary-friend-button {
+  color: #1261d5;
+  background: #eaf2ff;
+}
+.friend-actions .primary-friend-button.is-primary {
+  color: #247048;
+  background: #e8f7ef;
+  opacity: 1;
 }
 .friend-actions .block-friend-button {
   color: #fff;
@@ -1897,10 +1917,28 @@ button:disabled {
   font-size: 8px;
 }
 .friend-schedule-list {
-  margin-top: 17px;
+  margin-top: 10px;
 }
 .friend-schedule-list .saved-duty:last-child {
   margin-bottom: 0;
+}
+.friend-schedule-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 16px;
+  padding: 13px 14px;
+  border: 1px solid #d6e1f3;
+  border-radius: 12px;
+  color: var(--ink);
+  background: #f7faff;
+  font-size: 13px;
+  font-weight: 750;
+}
+.friend-schedule-toggle b {
+  color: var(--primary);
+  font-size: 12px;
 }
 .friend-add-card {
   padding: 18px;
@@ -2711,12 +2749,13 @@ html[data-reduce-motion="true"] *::after {
     line-height: 1;
   }
   .event-pill {
-    width: calc(100% - 2px);
-    padding: 3px 1px;
-    border-radius: 4px;
+    width: auto;
+    max-width: calc(100% - 4px);
+    min-width: 36px;
+    padding: 3px 6px;
+    border-radius: 999px;
     font-size: 9px;
     line-height: 1.05;
-    text-overflow: clip;
   }
   .more-count {
     font-size: 8px;

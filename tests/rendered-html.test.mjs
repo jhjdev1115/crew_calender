@@ -106,9 +106,9 @@ test("publishes public privacy and complete account deletion flows", async () =>
   assert.match(privacy, /CrewSync 개인정보처리방침/);
   assert.match(privacy, /로스터 PDF 원본은 브라우저 또는 기기 안에서만/);
   assert.match(deletionPage, /Google 계정으로 본인 확인/);
-  assert.match(deletionPage, /reauthenticateWithPopup/);
+  assert.match(deletionPage, /reauthenticateWithGoogle/);
   assert.match(deletionPage, /deleteUser/);
-  assert.match(page, /reauthenticateWithPopup/);
+  assert.match(page, /reauthenticateWithGoogle/);
   assert.match(page, /deleteUser/);
   assert.match(accountRoute, /DELETE FROM profiles WHERE user_id = \?/);
   assert.match(accountRoute, /DELETE FROM duties WHERE user_id = \?/);

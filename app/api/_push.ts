@@ -2,7 +2,8 @@ import {
   buildPushPayload,
   type PushSubscription,
 } from "@block65/webcrypto-web-push";
-import { getVapidKeys } from "../../db";
+import { importPKCS8, SignJWT } from "jose";
+import { getFirebaseMessagingCredentials, getVapidKeys } from "../../db";
 import { airportLocalDateTimeToDate } from "../airport-timezones";
 import { rows, toBool } from "./_lib";
 
@@ -24,6 +25,16 @@ type DutyRow = {
   arr_airport: string | null;
 };
 type PushMessage = { title: string; body: string; tag: string; url?: string };
+type NativePushRow = {
+  id: string;
+  user_id: string;
+  token: string;
+  platform: "android" | "ios";
+};
+
+let firebaseAccessToken:
+  | { value: string; expiresAt: number }
+  | null = null;
 
 async function sendSubscription(row: PushRow, message: PushMessage) {
   const vapid = getVapidKeys();
@@ -48,6 +59,80 @@ async function sendSubscription(row: PushRow, message: PushMessage) {
     payload.body.byteOffset + payload.body.byteLength,
   ) as ArrayBuffer;
   return fetch(row.endpoint, { ...payload, body });
+}
+
+async function getFirebaseAccessToken() {
+  if (firebaseAccessToken && firebaseAccessToken.expiresAt > Date.now() + 60_000) {
+    return firebaseAccessToken.value;
+  }
+  const credentials = getFirebaseMessagingCredentials();
+  if (!credentials.clientEmail || !credentials.privateKey) {
+    throw new Error("Firebase messaging service account is unavailable.");
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const key = await importPKCS8(credentials.privateKey, "RS256");
+  const assertion = await new SignJWT({
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+  })
+    .setProtectedHeader({ alg: "RS256", typ: "JWT" })
+    .setIssuer(credentials.clientEmail)
+    .setSubject(credentials.clientEmail)
+    .setAudience("https://oauth2.googleapis.com/token")
+    .setIssuedAt(now)
+    .setExpirationTime(now + 3600)
+    .sign(key);
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Firebase OAuth returned ${response.status}.`);
+  }
+  const result = (await response.json()) as {
+    access_token: string;
+    expires_in?: number;
+  };
+  firebaseAccessToken = {
+    value: result.access_token,
+    expiresAt: Date.now() + Math.max(300, result.expires_in ?? 3600) * 1000,
+  };
+  return firebaseAccessToken.value;
+}
+
+async function sendNativePush(row: NativePushRow, message: PushMessage) {
+  const credentials = getFirebaseMessagingCredentials();
+  if (!credentials.projectId) {
+    throw new Error("Firebase project ID is unavailable.");
+  }
+  const accessToken = await getFirebaseAccessToken();
+  return fetch(
+    `https://fcm.googleapis.com/v1/projects/${credentials.projectId}/messages:send`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: {
+          token: row.token,
+          notification: { title: message.title, body: message.body },
+          data: {
+            tag: message.tag,
+            url: message.url ?? "/",
+          },
+          android: {
+            priority: "high",
+            notification: { sound: "default", tag: message.tag },
+          },
+        },
+      }),
+    },
+  );
 }
 
 export async function sendPushToUser(
@@ -100,6 +185,48 @@ export async function sendPushToUser(
         .bind(subscription.id, eventKey)
         .run();
       console.error(error instanceof Error ? error.message : "Push failed");
+    }
+  }
+  const nativeTokens = rows(
+    await db
+      .prepare("SELECT * FROM native_push_tokens WHERE user_id = ?")
+      .bind(userId)
+      .all<NativePushRow>(),
+  );
+  for (const token of nativeTokens) {
+    const inserted = await db
+      .prepare(
+        "INSERT OR IGNORE INTO native_notification_deliveries (id, token_id, event_key, sent_at) VALUES (?, ?, ?, ?)",
+      )
+      .bind(crypto.randomUUID(), token.id, eventKey, new Date().toISOString())
+      .run();
+    if (!inserted.meta.changes) continue;
+    try {
+      const response = await sendNativePush(token, message);
+      if (response.ok) {
+        sent += 1;
+      } else if (response.status === 400 || response.status === 404) {
+        await db.batch([
+          db
+            .prepare(
+              "DELETE FROM native_notification_deliveries WHERE token_id = ?",
+            )
+            .bind(token.id),
+          db
+            .prepare("DELETE FROM native_push_tokens WHERE id = ?")
+            .bind(token.id),
+        ]);
+      } else {
+        throw new Error(`FCM returned ${response.status}.`);
+      }
+    } catch (error) {
+      await db
+        .prepare(
+          "DELETE FROM native_notification_deliveries WHERE token_id = ? AND event_key = ?",
+        )
+        .bind(token.id, eventKey)
+        .run();
+      console.error(error instanceof Error ? error.message : "FCM push failed");
     }
   }
   return sent;

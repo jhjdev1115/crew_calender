@@ -13,11 +13,21 @@
     "db:migrate:cloudflare": "wrangler d1 migrations apply crewsync-production --remote --config wrangler.jsonc",
     "secrets:cloudflare": "node scripts/configure-cloudflare-secrets.mjs",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern android/app/src/main/assets",
+    "db:generate": "drizzle-kit generate",
+    "android:add": "cap add android",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android",
+    "android:build:debug": "cap sync android && cd android && gradlew.bat assembleDebug",
+    "android:build:release": "cap sync android && cd android && gradlew.bat bundleRelease"
   },
   "dependencies": {
     "@block65/webcrypto-web-push": "^1.0.2",
+    "@capacitor-firebase/authentication": "^8.3.0",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
     "drizzle-orm": "0.45.2",
     "firebase": "^12.17.1",
     "jose": "^6.2.8",
@@ -27,6 +37,7 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@cloudflare/vite-plugin": "1.37.1",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",

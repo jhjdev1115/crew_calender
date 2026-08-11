@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   deleteUser,
-  GoogleAuthProvider,
   onAuthStateChanged,
-  reauthenticateWithPopup,
-  signInWithPopup,
   type User,
 } from "firebase/auth";
 import { firebaseAuth } from "../firebase-client";
+import {
+  reauthenticateWithGoogle,
+  signInWithGoogle,
+} from "../native-auth";
 
 function errorMessage(error: unknown) {
   const code =
@@ -44,7 +45,7 @@ export default function DeleteAccountPage() {
     setBusy(true);
     setMessage(null);
     try {
-      await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+      await signInWithGoogle();
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -57,10 +58,7 @@ export default function DeleteAccountPage() {
     setBusy(true);
     setMessage(null);
     try {
-      const credential = await reauthenticateWithPopup(
-        user,
-        new GoogleAuthProvider(),
-      );
+      const credential = await reauthenticateWithGoogle(user);
       const token = await credential.user.getIdToken();
       const response = await fetch("/api/account", {
         method: "DELETE",

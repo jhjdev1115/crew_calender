@@ -10,6 +10,8 @@ type RuntimeEnv = {
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
   FIREBASE_PROJECT_ID?: string;
+  FIREBASE_CLIENT_EMAIL?: string;
+  FIREBASE_PRIVATE_KEY?: string;
 };
 
 export function getD1(): D1Database {
@@ -36,6 +38,15 @@ export function getOpenAIApiKey(): string | null {
 
 export function getFirebaseProjectId(): string | null {
   return (env as unknown as RuntimeEnv).FIREBASE_PROJECT_ID ?? null;
+}
+
+export function getFirebaseMessagingCredentials() {
+  const runtime = env as unknown as RuntimeEnv;
+  return {
+    projectId: runtime.FIREBASE_PROJECT_ID ?? null,
+    clientEmail: runtime.FIREBASE_CLIENT_EMAIL ?? null,
+    privateKey: runtime.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n") ?? null,
+  };
 }
 
 export function getVapidKeys() {
@@ -154,9 +165,23 @@ async function initializeDatabase() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS native_push_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES profiles(user_id),
+      token TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT 'android' CHECK (platform IN ('android','ios')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS notification_deliveries (
       id TEXT PRIMARY KEY,
       subscription_id TEXT NOT NULL REFERENCES push_subscriptions(id),
+      event_key TEXT NOT NULL,
+      sent_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS native_notification_deliveries (
+      id TEXT PRIMARY KEY,
+      token_id TEXT NOT NULL REFERENCES native_push_tokens(id),
       event_key TEXT NOT NULL,
       sent_at TEXT NOT NULL
     )`),
@@ -171,6 +196,15 @@ async function initializeDatabase() {
     ),
     db.prepare(
       "CREATE UNIQUE INDEX IF NOT EXISTS idx_invite_codes_hash ON invite_codes(code_hash)",
+    ),
+    db.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_native_push_token ON native_push_tokens(token)",
+    ),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_native_push_user ON native_push_tokens(user_id)",
+    ),
+    db.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_native_delivery_once ON native_notification_deliveries(token_id, event_key)",
     ),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_invite_codes_issuer_active ON invite_codes(issuer_user_id, expires_at)",
