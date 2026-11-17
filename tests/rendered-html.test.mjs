@@ -131,19 +131,21 @@ test("supports multiple friends and friend-specific monthly schedules", async ()
   assert.match(invitesRoute, /ON CONFLICT\(user_low_id, user_high_id\) DO UPDATE/);
   assert.doesNotMatch(invitesRoute, /이미 활성 연동이 있어요/);
   assert.match(styles, /\.friend-list/);
-  assert.match(styles, /\.friend-calendar-grid/);
+  assert.match(page, /friend-calendar-grid/);
 });
 
-test("fits the full calendar into the mobile viewport with compact flight labels", async () => {
+test("scrolls the calendar and day agenda inside the mobile viewport with dot markers", async () => {
   const [page, styles] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /function calendarDutyLabel/);
-  assert.match(page, /duty\.type === "flight" \? dutyLabels\.flight/);
+  assert.match(page, /className="duty-dot"/);
+  assert.match(page, /function NextDutyHome/);
+  assert.match(page, /setScreen\("home"\)/);
+  assert.match(styles, /\.day-cell\.shared > span/);
   assert.match(styles, /\.calendar-screen,[\s\S]*?height: 100dvh/);
-  assert.match(styles, /grid-template-rows: repeat\(6, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.calendar-content \{[\s\S]*?overflow-y: auto/);
   assert.match(styles, /\.settings-screen > \.screen-body \{[\s\S]*?overflow-y: auto/);
   assert.match(styles, /height: calc\(62px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /padding-bottom: env\(safe-area-inset-bottom\)/);
@@ -161,7 +163,7 @@ test("highlights today and reports completed monthly flight time", async () => {
   assert.match(page, /role="progressbar"/);
   assert.match(page, /key === todayKey\(\) \? "today"/);
   assert.match(styles, /\.day-cell\.today/);
-  assert.match(styles, /\.flight-progress-track/);
+  assert.match(styles, /\.flight-line/);
 });
 
 test("keeps today's typography unchanged and adds Korean flight time", async () => {

@@ -35,8 +35,8 @@ type Screen =
   | "onboarding"
   | "role"
   | "profile"
+  | "home"
   | "calendar"
-  | "day"
   | "duty"
   | "quick"
   | "roster"
@@ -162,14 +162,6 @@ const dutyLabels: Record<DutyType, string> = {
   training: "교육",
   leave: "연차",
 };
-const dutyIcons: Record<DutyType, string> = {
-  flight: "✈",
-  standby: "♿",
-  off: "♥",
-  layover: "⌖",
-  training: "▣",
-  leave: "▦",
-};
 const defaultNotifications: NotificationState = {
   all: true,
   mine: true,
@@ -252,8 +244,13 @@ function dutyLabel(duty: Duty) {
   if (duty.type === "layover") return `체류 ${duty.layover_city ?? ""}`.trim();
   return dutyLabels[duty.type];
 }
-function calendarDutyLabel(duty: Duty) {
-  return duty.type === "flight" ? dutyLabels.flight : dutyLabel(duty);
+function cellLabel(duty: Duty) {
+  if (duty.type === "flight") return duty.arr_airport ?? dutyLabels.flight;
+  if (duty.type === "layover") return duty.layover_city ?? dutyLabels.layover;
+  return dutyLabels[duty.type];
+}
+function isOffDay(list: Duty[]) {
+  return list.some((duty) => duty.type === "off" || duty.type === "leave");
 }
 function flightDurationMinutes(duty: Duty) {
   const start = airportLocalDateTimeToDate(
@@ -342,10 +339,16 @@ function Logo({ compact = false }: { compact?: boolean }) {
       className={`logo-lockup ${compact ? "compact" : ""}`}
       aria-label="CrewSync"
     >
-      <span className="logo-calendar" aria-hidden="true">
-        <span>↗</span>
-      </span>
-      <strong>CrewSync</strong>
+      <svg className="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
+        <rect x="3" y="7" width="42" height="38" rx="11" fill="#6fa8f0" />
+        <rect x="13" y="2" width="5" height="11" rx="2.5" fill="#1f2a44" />
+        <rect x="30" y="2" width="5" height="11" rx="2.5" fill="#1f2a44" />
+        <circle cx="19.5" cy="28" r="8.5" fill="#fff" />
+        <circle cx="28.5" cy="28" r="8.5" fill="#fff" fillOpacity="0.55" />
+      </svg>
+      <strong>
+        Crew<span>Sync</span>
+      </strong>
     </div>
   );
 }
@@ -372,36 +375,64 @@ function TopBar({
     </header>
   );
 }
+const navIcons = {
+  home: "M4 11l8-7 8 7v9h-5v-6H9v6H4z",
+  calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+  friends:
+    "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14.5a6.5 6.5 0 0 1 3.5 5.5",
+  add: "M12 5v14M5 12h14",
+  settings:
+    "M4 7h10M18 7h2M4 17h2M10 17h10M16 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM8 14.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+};
+function NavIcon({ name }: { name: keyof typeof navIcons }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={navIcons[name]} />
+    </svg>
+  );
+}
 function BottomNav({
   active,
   go,
+  role,
 }: {
-  active: "calendar" | "link" | "settings";
+  active: "home" | "calendar" | "link" | "settings";
   go: (screen: Screen) => void;
+  role: Role;
 }) {
+  const tab = (screen: Screen, icon: keyof typeof navIcons, label: string) => (
+    <button
+      className={active === screen ? "active" : ""}
+      aria-current={active === screen ? "page" : undefined}
+      onClick={() => go(screen)}
+    >
+      <NavIcon name={icon} />
+      <small>{label}</small>
+    </button>
+  );
   return (
     <nav className="bottom-nav" aria-label="주요 메뉴">
+      {tab("home", "home", "홈")}
+      {tab("calendar", "calendar", "캘린더")}
       <button
-        className={active === "calendar" ? "active" : ""}
-        onClick={() => go("calendar")}
+        className="nav-add"
+        onClick={() => go("duty")}
+        aria-label={role === "crew" ? "일정 추가" : "내 휴무 추가"}
       >
-        <span aria-hidden="true">▣</span>
-        <small>캘린더</small>
+        <NavIcon name="add" />
       </button>
-      <button
-        className={active === "link" ? "active" : ""}
-        onClick={() => go("link")}
-      >
-        <span aria-hidden="true">↗</span>
-        <small>친구</small>
-      </button>
-      <button
-        className={active === "settings" ? "active" : ""}
-        onClick={() => go("settings")}
-      >
-        <span aria-hidden="true">⚙</span>
-        <small>설정</small>
-      </button>
+      {tab("link", "friends", "친구")}
+      {tab("settings", "settings", "설정")}
     </nav>
   );
 }
@@ -559,7 +590,6 @@ function RoleSelection({
             className={`role-card ${role === item ? "selected" : ""}`}
             onClick={() => setRole(item)}
           >
-            <span className="role-icon">{item === "crew" ? "♧" : "♡"}</span>
             <span className="role-copy">
               <strong>{item === "crew" ? "승무원" : "친구"}</strong>
               <span>
@@ -678,14 +708,141 @@ function ProfileSetup({
   );
 }
 
+function NextDutyHome({
+  role,
+  duties,
+  partner,
+  loading,
+  go,
+  selectDate,
+  primaryFriendId,
+}: {
+  role: Role;
+  duties: Duty[];
+  partner: PartnerState;
+  loading: boolean;
+  go: (s: Screen) => void;
+  selectDate: (d: string) => void;
+  primaryFriendId: string | null;
+}) {
+  const today = todayKey();
+  const friend =
+    partner.friends.find((item) => item.user_id === primaryFriendId) ??
+    partner.friends[0] ??
+    null;
+  const friendDuties = friend
+    ? partner.friendDuties.filter((duty) => duty.user_id === friend.user_id)
+    : [];
+  // 파트너에게는 친구(승무원)의 출근이 주 내용
+  // shortcut: 이번 달에 불러온 일정만 본다, 월말에 다음 달 출근까지 보여주려면 /api/duties 를 기간 조회로 넓힐 것
+  const upcoming = (role === "crew" ? duties : friendDuties)
+    .filter((duty) => !isOffDay([duty]) && dutyEnd(duty) >= today)
+    .sort((a, b) =>
+      (a.start_at ?? a.start_date ?? "").localeCompare(
+        b.start_at ?? b.start_date ?? "",
+      ),
+    );
+  const next = upcoming[0];
+  const daysLeft = next
+    ? Math.max(
+        0,
+        Math.round((Date.parse(dutyStart(next)) - Date.parse(today)) / 86400000),
+      )
+    : 0;
+  const offDates = (list: Duty[]) =>
+    list.filter((duty) => isOffDay([duty])).map(dutyStart);
+  const nextShared = offDates(duties)
+    .filter((date) => date >= today && isOffDay(dutiesOnDate(friendDuties, date)))
+    .sort()[0];
+  const time = (duty: Duty) =>
+    duty.type === "flight" ? formatLocalFlightRange(duty) : formatDutyRange(duty);
+  return (
+    <main className="screen calendar-screen">
+      <section className="calendar-content">
+        <Logo compact />
+        <button
+          className="next-duty"
+          disabled={!next}
+          onClick={() => {
+            if (!next) return;
+            selectDate(dutyStart(next));
+            go("calendar");
+          }}
+        >
+          <span>
+            {role === "partner" && friend
+              ? `${friend.display_name}님의 다음 출근`
+              : "다음 출근"}
+          </span>
+          {next ? (
+            <>
+              <strong>
+                {daysLeft === 0 ? "오늘" : daysLeft === 1 ? "내일" : `D-${daysLeft}`}
+              </strong>
+              <b>{dutyLabel(next)}</b>
+              <small>{formatKoreanDate(dutyStart(next))}</small>
+              <small>{time(next)}</small>
+              {next.type === "flight" && formatKoreanFlightRange(next) && (
+                <small>한국 시간 · {formatKoreanFlightRange(next)}</small>
+              )}
+            </>
+          ) : (
+            <small>
+              {loading
+                ? "일정을 동기화하는 중이에요"
+                : "이번 달 남은 출근 일정이 없어요."}
+            </small>
+          )}
+        </button>
+        {upcoming.length > 1 && (
+          <section className="agenda" aria-label="그다음 일정">
+            <h2>그다음 일정</h2>
+            <ul>
+              {upcoming.slice(1, 4).map((duty) => (
+                <li className="agenda-row" key={duty.id}>
+                  <i className="duty-dot" />
+                  <span>
+                    <strong>{dutyLabel(duty)}</strong>
+                    <small>
+                      {formatKoreanDate(dutyStart(duty))} · {time(duty)}
+                    </small>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {friend && (
+          <button className="flight-line" onClick={() => go("link")}>
+            <span>{friend.display_name}님과 다음 같이 쉬는 날</span>
+            <b>{nextShared ? formatKoreanDate(nextShared) : "이번 달 없음"}</b>
+          </button>
+        )}
+        <button className="flight-line" onClick={() => go("duty")}>
+          <span>{role === "crew" ? "비행·일정 직접 등록" : "내 휴무 등록"}</span>
+          <b>›</b>
+        </button>
+        {role === "crew" && (
+          <button className="flight-line" onClick={() => go("roster")}>
+            <span>로스터 PDF로 한 번에 등록</span>
+            <b>›</b>
+          </button>
+        )}
+      </section>
+      <BottomNav active="home" go={go} role={role} />
+    </main>
+  );
+}
+
 function CalendarHome({
   role,
-  profile,
   duties,
   partner,
   month,
   loading,
   go,
+  selectedDate,
+  remove,
   selectDate,
   changeMonth,
   toast,
@@ -693,12 +850,13 @@ function CalendarHome({
   primaryFriendId,
 }: {
   role: Role;
-  profile: Profile;
   duties: Duty[];
   partner: PartnerState;
   month: string;
   loading: boolean;
   go: (s: Screen) => void;
+  selectedDate: string;
+  remove: (id: string) => Promise<void>;
   selectDate: (d: string) => void;
   changeMonth: (delta: number) => void;
   toast: (m: string) => void;
@@ -735,25 +893,6 @@ function CalendarHome({
         : [],
     [partner.friendDuties, primaryFriend],
   );
-  const allDuties = useMemo(
-    () =>
-      role === "partner"
-        ? [
-            ...duties,
-            ...primaryFriendDuties.map((d) => ({
-              ...d,
-              source: "partner" as const,
-            })),
-          ]
-        : duties,
-    [duties, primaryFriendDuties, role],
-  );
-  const byDate = useMemo(() => {
-    const map = new Map<string, Duty[]>();
-    for (const cell of cells)
-      map.set(cell.key, dutiesOnDate(allDuties, cell.key));
-    return map;
-  }, [allDuties, cells]);
   const partnerName = primaryFriend?.display_name ?? "친구";
   const flightStats = useMemo(() => {
     const trackedDuties = role === "crew" ? duties : primaryFriendDuties;
@@ -775,103 +914,55 @@ function CalendarHome({
         : 0,
     };
   }, [duties, month, primaryFriendDuties, role]);
+  const selectedMine = dutiesOnDate(duties, selectedDate);
+  const selectedPeer = dutiesOnDate(primaryFriendDuties, selectedDate);
+  const agendaRow = (duty: Duty, own: boolean) => (
+    <li className="agenda-row" key={duty.id}>
+      <i className={`duty-dot ${isOffDay([duty]) ? "rest" : ""}`} />
+      <span>
+        <strong>{dutyLabel(duty)}</strong>
+        <small>
+          {own ? "나" : partnerName} ·{" "}
+          {duty.type === "flight"
+            ? formatLocalFlightRange(duty)
+            : formatDutyRange(duty)}
+        </small>
+        {duty.type === "flight" && formatKoreanFlightRange(duty) && (
+          <small>한국 시간 · {formatKoreanFlightRange(duty)}</small>
+        )}
+        {own && duty.note && <small>{duty.note}</small>}
+      </span>
+      {own && (
+        <button onClick={() => remove(duty.id)} aria-label="일정 삭제">
+          삭제
+        </button>
+      )}
+    </li>
+  );
   return (
     <main className="screen calendar-screen">
       <section className="calendar-content">
-        <div className="greeting-row">
-          <div>
-            <h1>안녕하세요, {profile.display_name}님</h1>
-            <p>
-              {loading
-                ? "일정을 동기화하는 중이에요"
-                : `${duties.length}개의 내 일정이 저장되어 있어요`}
-            </p>
-          </div>
-          <div className="avatar avatar-small">
-            {profile.display_name.slice(0, 1)}
-          </div>
-        </div>
-        {partner.friends.length > 0 && (
-          <button className="partner-banner" onClick={() => go("link")}>
-            <span className="avatar avatar-medium">
-              {partnerName.slice(0, 1)}
-            </span>
-            <span>
-              <strong>
-                {`${partnerName}님의 시간표`}
-              </strong>
-              <small>
-                {String(primaryFriend?.airline ?? "등록된 친구")}
-                {primaryFriend?.base_airport
-                  ? ` · ${String(primaryFriend.base_airport)}`
-                  : ""}
-              </small>
-            </span>
-            <em>{partner.friends.length > 1 ? `메인 · 친구 ${partner.friends.length}명` : "메인 시간표"}</em>
-            <b>›</b>
-          </button>
-        )}
-        {role === "crew" && (
-          <button className="ai-roster-banner" onClick={() => go("roster")}>
-            <span>✦</span>
-            <span>
-              <strong>기기에서 로스터 PDF 등록</strong>
-              <small>PDF를 올리면 일정과 현지 시각을 자동으로 정리해요</small>
-            </span>
-            <b>›</b>
-          </button>
-        )}
-        {subscription.plan === "pro" ? (
-        <section className="flight-progress" aria-label="이번 달 비행시간 진행률">
-          <div>
-            <span>
-              {role === "partner" ? `${partnerName}님의 ` : ""}이번 달 비행시간
-            </span>
-            <strong>
-              {formatFlightMinutes(flightStats.completedMinutes)}
-              <small> / 총 {formatFlightMinutes(flightStats.totalMinutes)}</small>
-            </strong>
-          </div>
-          <div
-            className="flight-progress-track"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={flightStats.percent}
-          >
-            <i style={{ width: `${flightStats.percent}%` }} />
-          </div>
-          <b>{flightStats.percent}%</b>
-        </section>
-        ) : (
-          <button className="flight-progress flight-progress-locked" onClick={() => go("pro")}>
-            <span className="pro-lock" aria-hidden="true">✦</span>
-            <span>
-              <strong>이번 달 비행시간 통계</strong>
-              <small>Pro에서 총 비행시간과 진행률을 확인하세요</small>
-            </span>
-            <b>Pro</b>
-          </button>
-        )}
+        <Logo compact />
         <div className="month-toolbar">
+          <h1>{formatMonth(month)}</h1>
           <button aria-label="이전 달" onClick={() => changeMonth(-1)}>
             ‹
-          </button>
-          <h2>{formatMonth(month)}</h2>
-          <button aria-label="다음 달" onClick={() => changeMonth(1)}>
-            ›
           </button>
           <button
             className="today-button"
             onClick={() => {
-              const now = monthKey();
-              if (now === month) toast("이미 이번 달을 보고 있어요");
+              selectDate(todayKey());
+              if (monthKey() === month) toast("이미 이번 달을 보고 있어요");
               else changeMonth(0);
             }}
           >
             오늘
           </button>
+          <button aria-label="다음 달" onClick={() => changeMonth(1)}>
+            ›
+          </button>
         </div>
+        <div className="calendar-card">
         <div className="weekday-row">
           {["월", "화", "수", "목", "금", "토", "일"].map((d, i) => (
             <span className={i === 5 ? "sat" : i === 6 ? "sun" : ""} key={d}>
@@ -881,140 +972,95 @@ function CalendarHome({
         </div>
         <div className="calendar-grid">
           {cells.map(({ key, day, current, index }) => {
-            const events = byDate.get(key) ?? [];
+            const mine = dutiesOnDate(duties, key);
+            const peer = dutiesOnDate(primaryFriendDuties, key);
+            // 파트너는 친구(승무원) 일정이 주 내용, 승무원은 내 일정이 주 내용
+            const work = (role === "partner" ? peer : mine).find(
+              (duty) => !isOffDay([duty]),
+            );
+            const shared = isOffDay(mine) && isOffDay(peer);
+            // 출근을 놓치는 쪽이 더 곤란하므로 같은 날이면 비행 표시가 휴무보다 우선
+            const flight = (role === "partner" ? peer : mine).some(
+              (duty) => duty.type === "flight",
+            );
             const dow = index % 7;
-            const shared =
-              events.some(
-                (d) =>
-                  d.source !== "partner" && ["off", "leave"].includes(d.type),
-              ) &&
-              events.some(
-                (d) =>
-                  d.source === "partner" && ["off", "leave"].includes(d.type),
-              );
             return (
               <button
                 key={key}
-                className={`day-cell ${!current ? "outside" : ""} ${shared ? "shared" : ""} ${key === todayKey() ? "today" : ""}`}
-                onClick={() => {
-                  selectDate(key);
-                  go("day");
-                }}
-                aria-label={`${key}, ${events.map(dutyLabel).join(", ")}`}
+                className={`day-cell ${!current ? "outside" : ""} ${flight ? "flight" : shared ? "shared" : isOffDay(mine) ? "off" : ""} ${key === todayKey() ? "today" : ""} ${key === selectedDate ? "selected" : ""}`}
+                onClick={() => selectDate(key)}
+                aria-pressed={key === selectedDate}
+                aria-label={`${key}, ${[...mine, ...peer].map(dutyLabel).join(", ")}${shared ? ", 같이 쉬는 날" : ""}`}
               >
                 <span className={dow === 5 ? "sat" : dow === 6 ? "sun" : ""}>
                   {day}
                 </span>
-                {events.slice(0, 2).map((event) => (
-                  <em
-                    className={`event-pill event-${event.type}`}
-                    key={`${event.id}-${key}`}
-                  >
-                    {calendarDutyLabel(event)}
-                  </em>
-                ))}
-                {events.length > 2 && (
-                  <small className="more-count desktop-more-count">
-                    +{events.length - 2}
-                  </small>
-                )}
-                {events.length > 1 && (
-                  <small className="more-count mobile-more-count">
-                    +{events.length - 1}
-                  </small>
-                )}
+                {work && <em>{cellLabel(work)}</em>}
               </button>
             );
           })}
         </div>
-        {!loading && allDuties.length === 0 && (
-          <div className="calendar-empty">
-            <strong>아직 등록된 일정이 없어요</strong>
-            <span>아래 버튼으로 첫 일정을 추가해보세요.</span>
-          </div>
-        )}
-        <button className="fab" onClick={() => go("duty")}>
-          <span>＋</span>
-          {role === "crew" ? "일정 추가" : "내 휴무 추가"}
-        </button>
-      </section>
-      <BottomNav active="calendar" go={go} />
-    </main>
-  );
-}
-
-function DayDetail({
-  date,
-  duties,
-  partnerDuties,
-  back,
-  add,
-  remove,
-}: {
-  date: string;
-  duties: Duty[];
-  partnerDuties: Duty[];
-  back: () => void;
-  add: () => void;
-  remove: (id: string) => Promise<void>;
-}) {
-  const mine = dutiesOnDate(duties, date);
-  const peer = dutiesOnDate(partnerDuties, date);
-  const shared =
-    mine.some((d) => ["off", "leave"].includes(d.type)) &&
-    peer.some((d) => ["off", "leave"].includes(d.type));
-  const card = (duty: Duty, own: boolean) => (
-    <article className={`saved-duty ${duty.type}`} key={duty.id}>
-      <div>
-        <Mark tone={["off", "leave"].includes(duty.type) ? "green" : "blue"}>
-          {dutyLabels[duty.type]}
-        </Mark>
-        {own && (
-          <button onClick={() => remove(duty.id)} aria-label="일정 삭제">
-            삭제
+        <p className="calendar-legend">
+          <b className="flight" />
+          비행
+          <b className="off" />
+          {role === "partner" ? "내 휴무" : "휴무"}
+          {primaryFriend && (
+            <>
+              <b className="shared" />
+              같이 쉬는 날
+            </>
+          )}
+        </p>
+        </div>
+        <section className="agenda" aria-label="선택한 날짜 일정">
+          <h2>
+            {formatKoreanDate(selectedDate)}
+            {isOffDay(selectedMine) && isOffDay(selectedPeer) && (
+              <em className="event-off">같이 쉬는 날</em>
+            )}
+          </h2>
+          {selectedMine.length + selectedPeer.length ? (
+            <ul>
+              {selectedMine.map((d) => agendaRow(d, true))}
+              {selectedPeer.map((d) => agendaRow(d, false))}
+            </ul>
+          ) : (
+            <p className="agenda-empty">
+              {loading
+                ? "일정을 동기화하는 중이에요"
+                : duties.length === 0
+                  ? "아직 등록된 일정이 없어요. 아래 + 버튼으로 첫 일정을 추가해보세요."
+                  : "이 날 등록된 일정이 없어요."}
+            </p>
+          )}
+        </section>
+        {subscription.plan === "pro" ? (
+          <section className="flight-line" aria-label="이번 달 비행시간 진행률">
+            <span>
+              {role === "partner" ? `${partnerName}님 ` : ""}이번 달 비행
+            </span>
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={flightStats.percent}
+            >
+              <i style={{ width: `${flightStats.percent}%` }} />
+            </div>
+            <strong>
+              {formatFlightMinutes(flightStats.completedMinutes)} /{" "}
+              {formatFlightMinutes(flightStats.totalMinutes)}
+            </strong>
+          </section>
+        ) : (
+          <button className="flight-line" onClick={() => go("pro")}>
+            <span>이번 달 비행시간 통계</span>
+            <b>Pro</b>
           </button>
         )}
-      </div>
-      <strong>{dutyLabel(duty)}</strong>
-      <span>
-        {duty.type === "flight" ? formatLocalFlightRange(duty) : formatDutyRange(duty)}
-      </span>
-      {duty.type === "flight" && formatKoreanFlightRange(duty) && (
-        <span className="korea-time">
-          한국 시간 · {formatKoreanFlightRange(duty)}
-        </span>
-      )}
-      {own && duty.note && <small>{duty.note}</small>}
-    </article>
-  );
-  return (
-    <main className="screen detail-screen">
-      <TopBar title={formatKoreanDate(date)} onBack={back} />
-      <section className="screen-body day-body">
-        {shared && (
-          <div className="shared-banner static">
-            <span className="heart-calendar">♥</span>
-            <strong>같은 날짜 휴무</strong>
-          </div>
-        )}
-        <h2>내 일정</h2>
-        {mine.length ? (
-          mine.map((d) => card(d, true))
-        ) : (
-          <div className="empty-card">이 날 등록된 내 일정이 없어요.</div>
-        )}
-        <h2>친구 일정</h2>
-        {peer.length ? (
-          peer.map((d) => card(d, false))
-        ) : (
-          <div className="empty-card">공유된 친구 일정이 없어요.</div>
-        )}
       </section>
-      <div className="sticky-action">
-        <button className="button button-outline" onClick={add}>
-          ＋ 이 날 일정 추가
-        </button>
-      </div>
+      <BottomNav active="calendar" go={go} role={role} />
     </main>
   );
 }
@@ -1094,7 +1140,6 @@ function DutyForm({
               onClick={() => setType(item)}
               className={type === item ? "active" : ""}
             >
-              <span>{dutyIcons[item]}</span>
               {dutyLabels[item]}
             </button>
           ))}
@@ -1762,6 +1807,8 @@ function RosterImport({
 }
 
 function FriendPage({
+  role,
+  duties,
   partner,
   subscription,
   primaryFriendId,
@@ -1776,6 +1823,8 @@ function FriendPage({
   changeMonth,
   toast,
 }: {
+  role: Role;
+  duties: Duty[];
   partner: PartnerState;
   subscription: Subscription;
   primaryFriendId: string | null;
@@ -1837,6 +1886,12 @@ function FriendPage({
       };
     });
   }, [month]);
+  const sharedDays = cells.filter(
+    (cell) =>
+      cell.current &&
+      isOffDay(dutiesOnDate(duties, cell.key)) &&
+      isOffDay(dutiesOnDate(selectedDuties, cell.key)),
+  );
   const create = async () => {
     setBusy(true);
     try {
@@ -1866,9 +1921,32 @@ function FriendPage({
           <b>{subscription.plan === "pro" ? `${partner.friends.length}명` : `${partner.friends.length}/${freeFriendLimit}`}</b>
         </div>
 
+        {selectedFriend && (
+          <section className="shared-days">
+            <span>
+              {selectedFriend.display_name}님과 같이 쉬는 날 · {formatMonth(month)}
+            </span>
+            <strong>{sharedDays.length}일</strong>
+            {sharedDays.length > 0 && (
+              <div>
+                {sharedDays.map((cell) => (
+                  <em key={cell.key}>
+                    {cell.day}일 {"월화수목금토일"[cell.index % 7]}
+                  </em>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {partner.friends.length ? (
           <div className="friend-list" aria-label="등록된 친구">
-            {partner.friends.map((friend) => (
+            {partner.friends.map((friend) => {
+              const today = dutiesOnDate(
+                partner.friendDuties.filter((duty) => duty.user_id === friend.user_id),
+                todayKey(),
+              )[0];
+              return (
               <button
                 className={friend.user_id === selectedFriend?.user_id ? "active" : ""}
                 key={friend.user_id}
@@ -1881,11 +1959,15 @@ function FriendPage({
                     {friend.role === "crew"
                       ? `${friend.airline ?? "승무원"}${friend.base_airport ? ` · ${friend.base_airport}` : ""}`
                       : "친구"}
+                    {friend.user_id === primaryFriendId ? " · 메인" : ""}
                   </small>
                 </span>
-                <b>{friend.user_id === primaryFriendId ? "메인" : "›"}</b>
+                {today && (
+                  <em className={`event-${today.type}`}>오늘 {dutyLabels[today.type]}</em>
+                )}
               </button>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="empty-card">아직 등록된 친구가 없어요. 초대 코드로 첫 친구를 추가해보세요.</div>
@@ -1896,7 +1978,6 @@ function FriendPage({
             <div className="friend-calendar-heading">
               <span>
                 <strong>{selectedFriend.display_name}님의 시간표</strong>
-                <small>{formatMonth(month)}</small>
               </span>
               <div className="friend-actions">
                 <button
@@ -1941,10 +2022,10 @@ function FriendPage({
               </div>
             </div>
             <div className="month-toolbar friend-month-toolbar">
-              <button aria-label="이전 달" onClick={() => changeMonth(-1)}>‹</button>
               <h2>{formatMonth(month)}</h2>
-              <button aria-label="다음 달" onClick={() => changeMonth(1)}>›</button>
+              <button aria-label="이전 달" onClick={() => changeMonth(-1)}>‹</button>
               <button className="today-button" onClick={() => changeMonth(0)}>오늘</button>
+              <button aria-label="다음 달" onClick={() => changeMonth(1)}>›</button>
             </div>
             <div className="weekday-row">
               {["월", "화", "수", "목", "금", "토", "일"].map((day, index) => (
@@ -1955,12 +2036,11 @@ function FriendPage({
               {cells.map(({ key, day, current, index }) => {
                 const events = dutiesOnDate(selectedDuties, key);
                 return (
-                  <div className={`day-cell ${!current ? "outside" : ""} ${key === todayKey() ? "today" : ""}`} key={key}>
+                  <div className={`day-cell ${!current ? "outside" : ""} ${events.some((event) => event.type === "flight") ? "flight" : isOffDay(events) ? "off" : ""} ${key === todayKey() ? "today" : ""}`} key={key}>
                     <span className={index % 7 === 5 ? "sat" : index % 7 === 6 ? "sun" : ""}>{day}</span>
-                    {events.slice(0, 1).map((event) => (
-                      <em className={`event-pill event-${event.type}`} key={`${event.id}-${key}`}>{calendarDutyLabel(event)}</em>
+                    {events.filter((event) => !isOffDay([event])).slice(0, 1).map((event) => (
+                      <em key={event.id}>{cellLabel(event)}</em>
                     ))}
-                    {events.length > 1 && <small className="more-count">+{events.length - 1}</small>}
                   </div>
                 );
               })}
@@ -1971,7 +2051,7 @@ function FriendPage({
               onClick={() => setScheduleExpanded((expanded) => !expanded)}
             >
               <span>상세 일정 {selectedDuties.length}개</span>
-              <b>{scheduleExpanded ? "접기 ▲" : "펼치기 ▼"}</b>
+              <b>{scheduleExpanded ? "접기" : "펼치기"}</b>
             </button>
             {scheduleExpanded && (
               <div className="friend-schedule-list">
@@ -2009,11 +2089,11 @@ function FriendPage({
               <strong>{issued.code}</strong>
               <p>{new Date(issued.expiresAt).toLocaleDateString("ko-KR")}까지</p>
               <div>
-                <button onClick={() => { navigator.clipboard.writeText(issued.code); toast("초대 코드를 복사했어요"); }}>▤ 복사</button>
+                <button onClick={() => { navigator.clipboard.writeText(issued.code); toast("초대 코드를 복사했어요"); }}>복사</button>
                 <button onClick={() => {
                   if (navigator.share) navigator.share({ title: "CrewSync 친구 초대", text: issued.code });
                   else navigator.clipboard.writeText(issued.code);
-                }}>⇧ 공유</button>
+                }}>공유</button>
               </div>
             </article>
           ) : (
@@ -2037,10 +2117,10 @@ function FriendPage({
           <p>✓ 비행 날짜와 출발·도착 공항</p>
           <p>✓ 출발·도착 현지 시각과 한국 시각</p>
           <p>✓ 휴무·교육 등 일정 유형</p>
-          <div>▣ 기종, 호텔명, 메모는 공유되지 않아요</div>
+          <div>기종, 호텔명, 메모는 공유되지 않아요</div>
         </article>
       </section>
-      <BottomNav active="link" go={go} />
+      <BottomNav active="link" go={go} role={role} />
     </main>
   );
 }
@@ -2069,19 +2149,18 @@ function Toggle({
     </button>
   );
 }
-function SettingIcon({ children }: { children: ReactNode }) {
-  return <span className="setting-icon">{children}</span>;
-}
 function base64UrlToBytes(value: string) {
   const padded = `${value.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - (value.length % 4)) % 4)}`;
   const raw = window.atob(padded);
   return Uint8Array.from(raw, (character) => character.charCodeAt(0));
 }
 function NotificationSettings({
+  role,
   value,
   go,
   save,
 }: {
+  role: Role;
   value: NotificationState;
   go: (s: Screen) => void;
   save: (value: NotificationState) => Promise<void>;
@@ -2202,12 +2281,11 @@ function NotificationSettings({
       setSaving(false);
     }
   };
-  const rows: [keyof NotificationState, string, string, string][] = [
-    ["mine", "✈", "내 비행 3시간 전", "내 출발 일정을 미리 알려드려요"],
-    ["partnerPre", "⌁", "친구 비행 3시간 전", "친구의 비행 시작 전 알림"],
+  const rows: [keyof NotificationState, string, string][] = [
+    ["mine", "내 비행 3시간 전", "내 출발 일정을 미리 알려드려요"],
+    ["partnerPre", "친구 비행 3시간 전", "친구의 비행 시작 전 알림"],
     [
       "partnerPost",
-      "⌁",
       "친구 비행 종료 예정",
       "도착 확정이 아닌 예정 시각 안내",
     ],
@@ -2217,7 +2295,6 @@ function NotificationSettings({
       <TopBar title="알림 설정" onBack={() => go("settings")} />
       <section className="screen-body settings-body">
         <div className={`push-setup-card ${pushStatus === "enabled" ? "enabled" : ""}`}>
-          <SettingIcon>♧</SettingIcon>
           <span>
             <strong>
               {pushStatus === "enabled" ? "휴대폰 알림 연결됨" : "휴대폰 알림 받기"}
@@ -2249,7 +2326,6 @@ function NotificationSettings({
           )}
         </div>
         <div className="setting-card single">
-          <SettingIcon>●</SettingIcon>
           <span>
             <strong>전체 알림</strong>
             <small>{saving ? "저장 중…" : "CrewSync의 모든 알림"}</small>
@@ -2262,9 +2338,8 @@ function NotificationSettings({
         </div>
         <h2>비행 알림</h2>
         <div className="setting-card grouped">
-          {rows.map(([key, icon, title, sub]) => (
+          {rows.map(([key, title, sub]) => (
             <div className="setting-row" key={key}>
-              <SettingIcon>{icon}</SettingIcon>
               <span>
                 <strong>{title}</strong>
                 <small>{sub}</small>
@@ -2281,7 +2356,6 @@ function NotificationSettings({
         <h2>일정 알림</h2>
         <div className="setting-card grouped">
           <div className="setting-row">
-            <SettingIcon>▦</SettingIcon>
             <span>
               <strong>로스터 변경</strong>
               <small>상대 일정이 변경되면 알려드려요</small>
@@ -2294,7 +2368,6 @@ function NotificationSettings({
             />
           </div>
           <div className="setting-row">
-            <SettingIcon>♥</SettingIcon>
             <span>
               <strong>같은 날짜 휴무 D-1</strong>
               <small>전날 오전 9시에 알려드려요</small>
@@ -2309,7 +2382,6 @@ function NotificationSettings({
         </div>
         <h2>개인정보 보호</h2>
         <div className="setting-card single privacy-setting">
-          <SettingIcon>▣</SettingIcon>
           <span>
             <strong>잠금화면 상세 숨기기</strong>
             <small>알림 내용을 ‘새 알림이 있어요’로 표시</small>
@@ -2321,14 +2393,13 @@ function NotificationSettings({
           />
         </div>
         <div className="setting-card timezone-row">
-          <SettingIcon>◷</SettingIcon>
           <span>
             <strong>알림 기준 시간대</strong>
           </span>
           <em>자동 · 기기 시간대</em>
         </div>
       </section>
-      <BottomNav active="settings" go={go} />
+      <BottomNav active="settings" go={go} role={role} />
     </main>
   );
 }
@@ -2503,12 +2574,10 @@ function AccessibilityPage({
         </div>
         <div className="setting-card grouped accessibility-options">
           <div className="setting-row">
-            <SettingIcon>◐</SettingIcon>
             <span><strong>고대비 표시</strong><small>글자와 테두리를 더 선명하게 표시</small></span>
             <Toggle label="고대비 표시" on={value.highContrast} setOn={(next) => update("highContrast", next)} />
           </div>
           <div className="setting-row">
-            <SettingIcon>◌</SettingIcon>
             <span><strong>움직임 줄이기</strong><small>화면 전환과 애니메이션 최소화</small></span>
             <Toggle label="움직임 줄이기" on={value.reduceMotion} setOn={(next) => update("reduceMotion", next)} />
           </div>
@@ -2606,7 +2675,6 @@ function Settings({
   const section = (
     title: string,
     rows: {
-      icon: string;
       label: string;
       value?: string;
       action?: () => void;
@@ -2617,7 +2685,6 @@ function Settings({
       <div className="settings-list">
         {rows.map((row) => (
           <button key={row.label} onClick={row.action}>
-            <span className="line-icon">{row.icon}</span>
             <strong>{row.label}</strong>
             {row.value && <em>{row.value}</em>}
             <b>›</b>
@@ -2648,7 +2715,6 @@ function Settings({
         </article>
         {section("구독", [
           {
-            icon: "✦",
             label: "CrewSync Pro",
             value: subscription.plan === "pro" ? "이용 중" : "무료 플랜",
             action: () => go("pro"),
@@ -2656,25 +2722,24 @@ function Settings({
         ])}
         {section("친구", [
           {
-            icon: "↗",
             label: "친구 관리",
             value: partner.friends.length
               ? `${partner.friends.length}${subscription.plan === "pro" ? "명 등록됨" : `/${freeFriendLimit}명`}`
               : "등록된 친구 없음",
             action: () => go("link"),
           },
-          { icon: "♙", label: "차단 목록", value: `${blockedCount}명`, action: () => go("blocked") },
+          { label: "차단 목록", value: `${blockedCount}명`, action: () => go("blocked") },
         ])}
         {section("앱 설정", [
-          { icon: "♧", label: "알림 설정", action: () => go("notifications") },
-          { icon: "◷", label: "일정 기준 시간대", value: profile.schedule_tz, action: () => go("timezone") },
-          { icon: "◎", label: "화면 및 접근성", action: () => go("accessibility") },
+          { label: "알림 설정", action: () => go("notifications") },
+          { label: "일정 기준 시간대", value: profile.schedule_tz, action: () => go("timezone") },
+          { label: "화면 및 접근성", action: () => go("accessibility") },
         ])}
         {section("정보 및 지원", [
-          { icon: "□", label: "이용약관", action: () => go("terms") },
-          { icon: "♢", label: "개인정보처리방침", action: () => go("privacy") },
-          { icon: "?", label: "도움말 및 문의", action: () => go("help") },
-          { icon: "ⓘ", label: "앱 버전", value: "1.0.0", action: () => go("about") },
+          { label: "이용약관", action: () => go("terms") },
+          { label: "개인정보처리방침", action: () => go("privacy") },
+          { label: "도움말 및 문의", action: () => go("help") },
+          { label: "앱 버전", value: "1.0.0", action: () => go("about") },
         ])}
         <button className="logout-button" onClick={logout}>
           로그아웃
@@ -2688,7 +2753,7 @@ function Settings({
           <b>›</b>
         </button>
       </section>
-      <BottomNav active="settings" go={go} />
+      <BottomNav active="settings" go={go} role={profile.role ?? "crew"} />
     </main>
   );
 }
@@ -2868,6 +2933,8 @@ export default function Home() {
     if (next === "link") {
       setFriendReturnScreen(screen === "settings" ? "settings" : "calendar");
     }
+    // 홈의 "다음 출근"은 이번 달 일정 기준이라 달을 되돌린다
+    if (next === "home") setCurrentMonth(monthKey());
     if (next === "pro" && screen !== "pro") {
       setProReturnScreen(screen);
     }
@@ -2880,15 +2947,16 @@ export default function Home() {
     const listener = App.addListener("backButton", () => {
       setScreen((current) => {
         switch (current) {
-          case "calendar":
+          case "home":
           case "onboarding":
             void App.exitApp();
             return current;
+          case "calendar":
+            return "home";
           case "role":
             return "onboarding";
           case "profile":
             return profile?.role ? "settings" : "role";
-          case "day":
           case "duty":
           case "roster":
             return "calendar";
@@ -3004,7 +3072,7 @@ export default function Home() {
         setProfile(profileData.profile);
         if (profileData.profile.role) {
           setRole(profileData.profile.role);
-          setScreen("calendar");
+          setScreen("home");
         }
         setNotifications(notificationData.settings ?? defaultNotifications);
         setSubscription(subscriptionData.subscription);
@@ -3088,7 +3156,7 @@ export default function Home() {
     });
     setProfile(data.profile);
     notify("프로필을 저장했어요.");
-    go("calendar");
+    go("home");
   };
   const saveDuty = async (payload: DutyPayload, again: boolean) => {
     await requestJson("/api/duties", {
@@ -3266,11 +3334,6 @@ export default function Home() {
     partner.friends.find((friend) => friend.user_id === primaryFriendId)?.user_id ??
     partner.friends[0]?.user_id ??
     null;
-  const primaryFriendDuties = effectivePrimaryFriendId
-    ? partner.friendDuties.filter(
-        (duty) => duty.user_id === effectivePrimaryFriendId,
-      )
-    : [];
   const renderScreen = () => {
     switch (screen) {
       case "onboarding":
@@ -3299,32 +3362,34 @@ export default function Home() {
             back={() => (safeProfile.role ? go("settings") : go("role"))}
           />
         );
+      case "home":
+        return (
+          <NextDutyHome
+            role={role}
+            duties={duties}
+            partner={partner}
+            loading={loadingDuties}
+            go={go}
+            selectDate={setSelectedDate}
+            primaryFriendId={effectivePrimaryFriendId}
+          />
+        );
       case "calendar":
         return (
           <CalendarHome
             role={role}
-            profile={safeProfile}
             duties={duties}
             partner={partner}
             month={currentMonth}
             loading={loadingDuties}
             go={go}
+            selectedDate={selectedDate}
+            remove={removeDuty}
             selectDate={setSelectedDate}
             changeMonth={changeMonth}
             toast={notify}
             subscription={subscription}
             primaryFriendId={effectivePrimaryFriendId}
-          />
-        );
-      case "day":
-        return (
-          <DayDetail
-            date={selectedDate}
-            duties={duties}
-            partnerDuties={primaryFriendDuties}
-            back={() => go("calendar")}
-            add={() => go("duty")}
-            remove={removeDuty}
           />
         );
       case "duty":
@@ -3355,6 +3420,8 @@ export default function Home() {
       case "link":
         return (
           <FriendPage
+            role={role}
+            duties={duties}
             partner={partner}
             subscription={subscription}
             primaryFriendId={effectivePrimaryFriendId}
@@ -3381,6 +3448,7 @@ export default function Home() {
       case "notifications":
         return (
           <NotificationSettings
+            role={role}
             value={notifications}
             go={go}
             save={saveNotifications}

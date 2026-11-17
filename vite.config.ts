@@ -9,7 +9,8 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
-  compatibility_flags: ["nodejs_compat"],
+  // Local workerd lags production; wrangler.jsonc keeps the deployed date and flags.
+  compatibility_date: "2026-05-01",
   d1_databases: [
     {
       binding: "DB",
