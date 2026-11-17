@@ -38,6 +38,9 @@ export async function DELETE(request: Request) {
         .prepare("DELETE FROM notification_preferences WHERE user_id = ?")
         .bind(context.user.userId),
       context.db
+        .prepare("DELETE FROM roster_imports WHERE user_id = ?")
+        .bind(context.user.userId),
+      context.db
         .prepare("DELETE FROM subscriptions WHERE user_id = ?")
         .bind(context.user.userId),
       context.db

@@ -16,6 +16,13 @@ import {
 import { airportLocalDateTimeToDate } from "./airport-timezones";
 import { firebaseAuth } from "./firebase-client";
 import {
+  loadProPackages,
+  purchasePro,
+  purchasesAvailable,
+  restorePro,
+  type ProPackage,
+} from "./native-purchases";
+import {
   isNativeApp,
   reauthenticateWithGoogle,
   signInWithGoogle,
@@ -91,6 +98,10 @@ type NotificationState = {
   shared: boolean;
   private: boolean;
   notificationTz: string;
+};
+type SubscriptionSummary = {
+  subscription: Subscription;
+  freeRosterImportsLeft: number;
 };
 type Subscription = {
   plan: "free" | "pro";
@@ -339,12 +350,25 @@ function Logo({ compact = false }: { compact?: boolean }) {
       className={`logo-lockup ${compact ? "compact" : ""}`}
       aria-label="CrewSync"
     >
-      <svg className="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
-        <rect x="3" y="7" width="42" height="38" rx="11" fill="#6fa8f0" />
-        <rect x="13" y="2" width="5" height="11" rx="2.5" fill="#1f2a44" />
-        <rect x="30" y="2" width="5" height="11" rx="2.5" fill="#1f2a44" />
-        <circle cx="19.5" cy="28" r="8.5" fill="#fff" />
-        <circle cx="28.5" cy="28" r="8.5" fill="#fff" fillOpacity="0.55" />
+      <svg className="logo-mark" viewBox="0 0 120 120" aria-hidden="true">
+        <defs>
+          <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#b9d6fc" />
+            <stop offset="0.55" stopColor="#c3dff4" />
+            <stop offset="1" stopColor="#c9ebdd" />
+          </linearGradient>
+        </defs>
+        <rect width="120" height="120" rx="27" fill="url(#logo-bg)" />
+        <g
+          fill="#fff"
+          transform="translate(61.5 58.5) rotate(45) scale(0.8) translate(-60 -61)"
+        >
+          <path d="M60 18C65 18 67 26 67 34V86C67 94 64 102 60 104C56 102 53 94 53 86V34C53 26 55 18 60 18Z" />
+          <path d="M54 49L20 74C18 76 18 80 21 80L54 70Z" />
+          <path d="M66 49L100 74C102 76 102 80 99 80L66 70Z" />
+          <path d="M55 87L42 99C41 101 42 103 44 103L56 99Z" />
+          <path d="M65 87L78 99C79 101 78 103 76 103L64 99Z" />
+        </g>
       </svg>
       <strong>
         Crew<span>Sync</span>
@@ -1420,9 +1444,13 @@ function QuickEntry({
 function RosterImport({
   back,
   importItems,
+  freeLeft,
+  goPro,
 }: {
   back: () => void;
   importItems: (items: RosterItem[]) => Promise<void>;
+  freeLeft: number | null;
+  goPro: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<RosterAnalysis | null>(null);
@@ -1570,13 +1598,23 @@ function RosterImport({
           </p>
         </div>
         {error && <p className="roster-error">{error}</p>}
-        <button
-          className="button button-primary roster-analyze-button"
-          disabled={!file || analyzing}
-          onClick={analyze}
-        >
-          {analyzing ? "기기에서 로스터를 읽는 중…" : "보안 분석 시작"}
-        </button>
+        {freeLeft === 0 ? (
+          <button className="button button-primary roster-analyze-button" onClick={goPro}>
+            무료 2회를 모두 썼어요 · Pro로 계속 등록하기
+          </button>
+        ) : (
+          <button
+            className="button button-primary roster-analyze-button"
+            disabled={!file || analyzing}
+            onClick={analyze}
+          >
+            {analyzing
+              ? "기기에서 로스터를 읽는 중…"
+              : freeLeft === null
+                ? "보안 분석 시작"
+                : `보안 분석 시작 · 무료 ${freeLeft}회 남음`}
+          </button>
+        )}
         {analyzing && (
           <div className="roster-progress" role="status">
             <span className="loading-spinner" />
@@ -2406,14 +2444,55 @@ function NotificationSettings({
 
 function ProPage({
   subscription,
+  userId,
+  refresh,
+  go,
   back,
   notify,
 }: {
   subscription: Subscription;
+  userId: string;
+  refresh: () => Promise<void>;
+  go: (s: Screen) => void;
   back: () => void;
   notify: (message: string) => void;
 }) {
   const isPro = subscription.plan === "pro";
+  const canBuy = purchasesAvailable();
+  const [packages, setPackages] = useState<ProPackage[]>([]);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!canBuy || isPro) return;
+    let mounted = true;
+    loadProPackages(userId)
+      .then((list) => {
+        if (!mounted) return;
+        setPackages(list);
+        setChosen(list[0]?.identifier ?? null);
+      })
+      .catch(() => {
+        if (mounted) notify("구독 상품을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [canBuy, isPro, notify, userId]);
+  // 결제·복원 뒤에는 서버가 RevenueCat에 직접 확인한 결과만 반영한다
+  const run = async (action: () => Promise<void>, done: string) => {
+    setBusy(true);
+    try {
+      await action();
+      await refresh();
+      notify(done);
+    } catch (error) {
+      if (!(error as { userCancelled?: boolean }).userCancelled)
+        notify("결제를 완료하지 못했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const selected = packages.find((item) => item.identifier === chosen);
   return (
     <main className="screen form-screen pro-screen">
       <TopBar title="CrewSync Pro" onBack={back} />
@@ -2423,27 +2502,76 @@ function ProPage({
           <h1>{isPro ? "CrewSync Pro 이용 중" : "일정을 더 여유롭게"}</h1>
           <p>{isPro ? "모든 Pro 기능이 활성화되어 있어요." : "친구와 비행시간을 더 편하게 관리하세요."}</p>
         </div>
-        <article className="pro-plan-card">
-          <span>CREWSYNC PRO</span>
-          <strong>월 3,900원</strong>
-          <small>언제든 스토어에서 해지할 수 있어요</small>
-        </article>
         <section className="pro-benefit-list">
-          <p>✓ 친구 무제한 등록</p>
+          <p>✓ 친구 무제한 등록 (무료 {freeFriendLimit}명)</p>
           <p>✓ 이번 달 비행시간·진행률 통계</p>
-          <p>✓ PDF 로스터 분석 및 고급 알림 혜택</p>
+          <p>✓ 로스터 PDF 등록 무제한 (무료 2회)</p>
         </section>
         {isPro ? (
           <button className="button button-outline" onClick={back}>계속 사용하기</button>
+        ) : canBuy ? (
+          <>
+            <div className="pro-plans" role="radiogroup" aria-label="구독 상품">
+              {packages.map((item) => (
+                <button
+                  key={item.identifier}
+                  role="radio"
+                  aria-checked={item.identifier === chosen}
+                  className={item.identifier === chosen ? "selected" : ""}
+                  onClick={() => setChosen(item.identifier)}
+                >
+                  <strong>
+                    {item.packageType === "ANNUAL"
+                      ? "연 구독"
+                      : item.packageType === "MONTHLY"
+                        ? "월 구독"
+                        : item.product.title}
+                  </strong>
+                  <span>{item.product.priceString}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              className="button button-primary"
+              disabled={!selected || busy}
+              onClick={() =>
+                selected &&
+                run(() => purchasePro(userId, selected), "Pro 구독을 시작했어요.")
+              }
+            >
+              {busy ? "처리 중…" : "Pro 구독하기"}
+            </button>
+            <button
+              className="button button-ghost"
+              disabled={busy}
+              onClick={() => run(() => restorePro(userId), "구매 내역을 확인했어요.")}
+            >
+              구매 복원
+            </button>
+            <p className="pro-footnote">
+              구독은 기간이 끝나기 24시간 전까지 해지하지 않으면 같은 금액으로 자동 갱신돼요.
+              해지는 App Store 계정 설정의 구독에서 할 수 있어요.
+            </p>
+            <p className="legal">
+              <button onClick={() => go("terms")}>이용약관</button> ·{" "}
+              <button onClick={() => go("privacy")}>개인정보처리방침</button>
+            </p>
+          </>
         ) : (
-          <button
-            className="button button-primary"
-            onClick={() => notify("스토어 결제 연결을 준비 중이에요. 연결 후 이 화면에서 바로 구독할 수 있어요.")}
-          >
-            Pro 구독하기
-          </button>
+          <>
+            <article className="pro-plan-card">
+              <span>CREWSYNC PRO</span>
+              <strong>월 3,900원</strong>
+              <small>언제든 스토어에서 해지할 수 있어요</small>
+            </article>
+            <button
+              className="button button-primary"
+              onClick={() => notify("지금은 iOS 앱에서 구독할 수 있어요. 다른 기기는 준비 중이에요.")}
+            >
+              Pro 구독하기
+            </button>
+          </>
         )}
-        <p className="pro-footnote">구독 권한은 결제 완료 뒤 서버에서 확인되어 안전하게 적용됩니다.</p>
       </section>
     </main>
   );
@@ -2880,6 +3008,15 @@ export default function Home() {
     productId: null,
     currentPeriodEnd: null,
   });
+  const [freeRosterImportsLeft, setFreeRosterImportsLeft] = useState(2);
+  // sync=true는 결제·복원 직후: 서버가 RevenueCat에 다시 확인한다
+  const refreshSubscription = useCallback(async (sync = true) => {
+    const data = await requestJson<SubscriptionSummary>("/api/subscription", {
+      method: sync ? "POST" : "GET",
+    });
+    setSubscription(data.subscription);
+    setFreeRosterImportsLeft(data.freeRosterImportsLeft);
+  }, []);
   const [currentMonth, setCurrentMonth] = useState(monthKey());
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [loadingDuties, setLoadingDuties] = useState(false);
@@ -3064,7 +3201,7 @@ export default function Home() {
           requestJson<{ profile: Profile }>("/api/profile"),
           requestJson<{ settings: NotificationState }>("/api/notifications"),
           requestJson<PartnerState>(`/api/invites?month=${monthKey()}`),
-          requestJson<{ subscription: Subscription }>("/api/subscription"),
+          requestJson<SubscriptionSummary>("/api/subscription"),
           requestJson<{ blocked: BlockedUser[] }>("/api/blocks"),
         ]);
         if (!mounted) return;
@@ -3076,6 +3213,7 @@ export default function Home() {
         }
         setNotifications(notificationData.settings ?? defaultNotifications);
         setSubscription(subscriptionData.subscription);
+        setFreeRosterImportsLeft(subscriptionData.freeRosterImportsLeft);
         setBlockedUsers(blockedData.blocked ?? []);
         setPartner({
           ...partnerData,
@@ -3197,6 +3335,7 @@ export default function Home() {
     const targetMonth = data.month || first?.slice(0, 7) || currentMonth;
     if (targetMonth !== currentMonth) setCurrentMonth(targetMonth);
     await loadMonth(targetMonth);
+    await refreshSubscription(false).catch(() => undefined);
     const result = [`${data.imported}개 등록`];
     if (data.duplicates) result.push(`중복 ${data.duplicates}개 제외`);
     if (data.incomplete) result.push(`시작 정보 없음 ${data.incomplete}개 제외`);
@@ -3415,7 +3554,12 @@ export default function Home() {
         );
       case "roster":
         return (
-          <RosterImport back={() => go("calendar")} importItems={importRoster} />
+          <RosterImport
+            back={() => go("calendar")}
+            importItems={importRoster}
+            freeLeft={subscription.plan === "pro" ? null : freeRosterImportsLeft}
+            goPro={() => go("pro")}
+          />
         );
       case "link":
         return (
@@ -3441,6 +3585,9 @@ export default function Home() {
         return (
           <ProPage
             subscription={subscription}
+            userId={safeProfile.user_id}
+            refresh={refreshSubscription}
+            go={go}
             back={() => go(proReturnScreen)}
             notify={notify}
           />

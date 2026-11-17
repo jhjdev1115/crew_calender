@@ -4,6 +4,18 @@
   "description": "친구들과 함께 보는 승무원 공유 일정 캘린더",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1468ef"
+  "background_color": "#f1f6fd",
+  "theme_color": "#6fa8f0",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }

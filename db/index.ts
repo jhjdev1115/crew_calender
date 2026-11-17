@@ -12,6 +12,8 @@ type RuntimeEnv = {
   FIREBASE_PROJECT_ID?: string;
   FIREBASE_CLIENT_EMAIL?: string;
   FIREBASE_PRIVATE_KEY?: string;
+  REVENUECAT_SECRET_KEY?: string;
+  REVENUECAT_WEBHOOK_SECRET?: string;
 };
 
 export function getD1(): D1Database {
@@ -34,6 +36,14 @@ export function getOpenAIApiKey(): string | null {
     (typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined) ??
     null
   );
+}
+
+export function getRevenueCatSecrets() {
+  const runtime = env as unknown as RuntimeEnv;
+  return {
+    apiKey: runtime.REVENUECAT_SECRET_KEY ?? null,
+    webhookSecret: runtime.REVENUECAT_WEBHOOK_SECRET ?? null,
+  };
 }
 
 export function getFirebaseProjectId(): string | null {
@@ -154,6 +164,11 @@ async function initializeDatabase() {
     db.prepare(`CREATE TABLE IF NOT EXISTS active_memberships (
       user_id TEXT PRIMARY KEY REFERENCES profiles(user_id),
       connection_id TEXT NOT NULL REFERENCES connections(id),
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS roster_imports (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES profiles(user_id),
       created_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS push_subscriptions (

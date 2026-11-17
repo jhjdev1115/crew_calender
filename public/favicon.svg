@@ -1,6 +1,5 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M22 19.2727C22 20.779 20.779 22 19.2727 22H14.7273C13.221 22 12 20.779 12 19.2727V12H19.2727C20.779 12 22 13.221 22 14.7273V19.2727Z" fill="#68C4FF"/>
-<path d="M20 2C21.1046 2 22 2.89543 22 4V7C22 8.10457 21.1046 9 20 9H17C15.8954 9 15 8.10457 15 7V4C15 2.89543 15.8954 2 17 2H20Z" fill="#0C79D8"/>
-<path d="M7 15C8.10457 15 9 15.8954 9 17V20C9 21.1046 8.10457 22 7 22H4C2.89543 22 2 21.1046 2 20V17C2 15.8954 2.89543 15 4 15H7Z" fill="#0C79D8"/>
-<path d="M12 12H4.72727C3.22104 12 2 10.779 2 9.27273V4.72727C2 3.22104 3.22104 2 4.72727 2H9.27273C10.779 2 12 3.22104 12 4.72727V12Z" fill="#2E9EFF"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B9D6FC"/><stop offset="0.55" stop-color="#C3DFF4"/><stop offset="1" stop-color="#C9EBDD"/></linearGradient>
+<radialGradient id="hl" cx="0.25" cy="0.2" r="0.7"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.45"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+<g id="plane"><path d="M60 18 C65 18 67 26 67 34 L67 86 C67 94 64 102 60 104 C56 102 53 94 53 86 L53 34 C53 26 55 18 60 18 Z"/><path d="M54 49 L20 74 C18 76 18 80 21 80 L54 70 Z"/><path d="M66 49 L100 74 C102 76 102 80 99 80 L66 70 Z"/><path d="M55 87 L42 99 C41 101 42 103 44 103 L56 99 Z"/><path d="M65 87 L78 99 C79 101 78 103 76 103 L64 99 Z"/></g>
+<clipPath id="c"><rect width="120" height="120" rx="27"/></clipPath></defs><g clip-path="url(#c)"><rect width="120" height="120" fill="url(#bg)"/><rect width="120" height="120" fill="url(#hl)"/><use href="#plane" fill="#6E9FE0" fill-opacity="0.22" transform="translate(1.5 2.5) translate(61.5 58.5) rotate(45) scale(0.8) translate(-60 -61)"/><use href="#plane" fill="#FFFFFF" transform="translate(61.5 58.5) rotate(45) scale(0.8) translate(-60 -61)"/></g></svg>

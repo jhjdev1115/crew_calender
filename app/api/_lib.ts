@@ -4,6 +4,7 @@ import {
   getD1,
   getFirebaseProjectId,
   getInvitePepper,
+  getRevenueCatSecrets,
 } from "../../db";
 
 export type ApiUser = { userId: string; email: string; displayName: string };
@@ -29,7 +30,7 @@ export async function getSubscription(
 ): Promise<Subscription> {
   const row = await db
     .prepare(
-      "SELECT plan, status, provider, product_id, current_period_end FROM subscriptions WHERE user_id = ?",
+      "SELECT plan, status, provider, product_id AS productId, current_period_end AS currentPeriodEnd FROM subscriptions WHERE user_id = ?",
     )
     .bind(userId)
     .first<Subscription>();
@@ -43,9 +44,70 @@ export async function getSubscription(
     };
   }
   const validUntil = !row.currentPeriodEnd || row.currentPeriodEnd > new Date().toISOString();
-  return row.status === "active" || (row.status === "trialing" && validUntil)
+  // 기간이 지난 구독은 웹훅이 늦어도 바로 무료로 취급한다
+  return validUntil && (row.status === "active" || row.status === "trialing")
     ? row
     : { ...row, plan: "free" };
+}
+
+export const FREE_ROSTER_IMPORTS = 2;
+
+export async function freeRosterImportsLeft(db: D1Database, userId: string) {
+  const row = await db
+    .prepare("SELECT COUNT(*) AS used FROM roster_imports WHERE user_id = ?")
+    .bind(userId)
+    .first<{ used: number }>();
+  return Math.max(0, FREE_ROSTER_IMPORTS - (row?.used ?? 0));
+}
+
+// RevenueCat이 구독의 원본이다. "pro" entitlement 상태를 읽어 subscriptions 행에 반영한다.
+export async function syncRevenueCat(db: D1Database, userId: string) {
+  const { apiKey } = getRevenueCatSecrets();
+  if (!apiKey) throw new Error("REVENUECAT_SECRET_KEY is not configured.");
+  const response = await fetch(
+    `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(userId)}`,
+    { headers: { Authorization: `Bearer ${apiKey}` } },
+  );
+  if (!response.ok) throw new Error(`RevenueCat responded ${response.status}.`);
+  const data = (await response.json()) as {
+    subscriber?: {
+      entitlements?: Record<
+        string,
+        { expires_date: string | null; product_identifier: string }
+      >;
+    };
+  };
+  const pro = data.subscriber?.entitlements?.pro;
+  const now = new Date().toISOString();
+  if (!pro) {
+    // 수동으로 부여한 Pro(provider가 다른 행)는 건드리지 않는다
+    await db
+      .prepare(
+        "UPDATE subscriptions SET plan = 'free', status = 'expired', updated_at = ? WHERE user_id = ? AND provider = 'revenuecat'",
+      )
+      .bind(now, userId)
+      .run();
+    return;
+  }
+  const expires = pro.expires_date ? new Date(pro.expires_date).toISOString() : null;
+  const active = !expires || expires > now;
+  await db
+    .prepare(
+      `INSERT INTO subscriptions (user_id, plan, status, provider, product_id, current_period_end, updated_at)
+       VALUES (?, ?, ?, 'revenuecat', ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET plan = excluded.plan, status = excluded.status,
+         provider = excluded.provider, product_id = excluded.product_id,
+         current_period_end = excluded.current_period_end, updated_at = excluded.updated_at`,
+    )
+    .bind(
+      userId,
+      active ? "pro" : "free",
+      active ? "active" : "expired",
+      pro.product_identifier,
+      expires,
+      now,
+    )
+    .run();
 }
 
 export async function activeFriendCount(db: D1Database, userId: string) {

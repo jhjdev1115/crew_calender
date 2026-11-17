@@ -20,7 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     manifest: "/manifest.webmanifest",
-    themeColor: "#1468ef",
+    icons: { icon: "/favicon.svg", apple: "/icon-192.png" },
+    themeColor: "#f1f6fd",
     openGraph: {
       title,
       description,

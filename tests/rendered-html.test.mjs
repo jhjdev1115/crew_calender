@@ -232,3 +232,28 @@ test("implements every settings destination and persistent user blocking", async
   assert.match(migration, /CREATE TABLE `user_blocks`/);
   assert.match(styles, /html\[data-reduce-motion="true"\]/);
 });
+
+test("splits free and Pro with server-verified RevenueCat subscriptions", async () => {
+  const [page, lib, subscriptionRoute, webhook, importRoute, accountRoute, purchases] =
+    await Promise.all([
+      readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/api/_lib.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/api/subscription/route.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/api/subscription/webhook/route.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/api/roster/import/route.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/api/account/route.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/native-purchases.ts", import.meta.url), "utf8"),
+    ]);
+
+  assert.match(lib, /FREE_ROSTER_IMPORTS = 2/);
+  assert.match(lib, /api\.revenuecat\.com\/v1\/subscribers/);
+  assert.match(lib, /current_period_end AS currentPeriodEnd/);
+  assert.match(subscriptionRoute, /await syncRevenueCat\(context\.db, context\.user\.userId\)/);
+  assert.match(webhook, /sameSecret\(header, `Bearer \$\{webhookSecret\}`\)/);
+  assert.match(importRoute, /status: 402/);
+  assert.match(importRoute, /INSERT INTO roster_imports/);
+  assert.match(accountRoute, /DELETE FROM roster_imports WHERE user_id = \?/);
+  assert.match(purchases, /appUserID: userId/);
+  assert.match(page, /구매 복원/);
+  assert.doesNotMatch(page, /스토어 결제 연결을 준비 중/);
+});

@@ -1,4 +1,10 @@
-import { prepareRequest, rows } from "../../_lib";
+import {
+  FREE_ROSTER_IMPORTS,
+  freeRosterImportsLeft,
+  getSubscription,
+  prepareRequest,
+  rows,
+} from "../../_lib";
 import { notifyPartnerRosterChanged } from "../../_push";
 
 type ImportItem = {
@@ -83,6 +89,16 @@ export async function POST(request: Request) {
       return Response.json(
         { error: "승무원 프로필에서만 로스터를 등록할 수 있어요." },
         { status: 403 },
+      );
+
+    const subscription = await getSubscription(context.db, context.user.userId);
+    const free = subscription.plan !== "pro";
+    if (free && (await freeRosterImportsLeft(context.db, context.user.userId)) <= 0)
+      return Response.json(
+        {
+          error: `무료 로스터 등록 ${FREE_ROSTER_IMPORTS}회를 모두 사용했어요. Pro에서 계속 쓸 수 있어요.`,
+        },
+        { status: 402 },
       );
 
     const body = (await request.json()) as { items?: ImportItem[] };
@@ -219,7 +235,13 @@ export async function POST(request: Request) {
           now,
         );
     });
-    await context.db.batch(statements);
+    // 실제로 일정이 등록된 경우에만 무료 횟수를 쓴다
+    await context.db.batch([
+      ...statements,
+      context.db
+        .prepare("INSERT INTO roster_imports (id, user_id, created_at) VALUES (?, ?, ?)")
+        .bind(crypto.randomUUID(), context.user.userId, now),
+    ]);
     await notifyPartnerRosterChanged(context.db, context.user.userId);
     return Response.json({
       imported: fresh.length,

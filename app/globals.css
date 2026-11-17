@@ -2758,3 +2758,32 @@ button.flight-line {
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
 }
+.pro-plans {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.pro-plans button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border: 1.5px solid transparent;
+  border-radius: 20px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+.pro-plans button.selected {
+  border-color: var(--sky);
+}
+.pro-plans span {
+  color: var(--blue);
+  font-weight: 700;
+}
+.pro-body > .pro-plan-card {
+  margin-bottom: 14px;
+}
+.pro-body > .button + .button {
+  margin-top: 8px;
+}
