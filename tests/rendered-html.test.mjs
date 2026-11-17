@@ -269,7 +269,8 @@ test("offers anonymous crew-written city reviews with reporting", async () => {
   assert.match(page, /function Community/);
   assert.match(page, /function CityReviews/);
   assert.match(page, /tab\("community", "community", "후기"\)/);
-  assert.match(cities, /code: "DOH", city: "도하", country: "카타르"/);
+  assert.match(cities, /code: "DOH", city: "도하", country: "카타르", continent: "아시아"/);
+  assert.match(page, /continents\.map/);
   assert.match(reviewsRoute, /profile\?\.role !== "crew"/);
   assert.match(reviewsRoute, /REPORTS_TO_HIDE = 3/);
   assert.match(reviewsRoute, /ON CONFLICT\(user_id, airport\) DO UPDATE/);

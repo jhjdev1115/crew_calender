@@ -32,6 +32,24 @@ const airportTimeZones: Record<string, string> = {
   MEX: "America/Mexico_City", GRU: "America/Sao_Paulo", GIG: "America/Sao_Paulo", EZE: "America/Argentina/Buenos_Aires",
   SYD: "Australia/Sydney", MEL: "Australia/Melbourne", BNE: "Australia/Brisbane", PER: "Australia/Perth", ADL: "Australia/Adelaide",
   AKL: "Pacific/Auckland", CHC: "Pacific/Auckland",
+  // 카타르항공 취항지 중 위 목록에 없던 공항
+  HGH: "Asia/Shanghai", TFU: "Asia/Shanghai", CKG: "Asia/Shanghai",
+  CRK: "Asia/Manila", DVO: "Asia/Manila", KTI: "Asia/Phnom_Penh", PEN: "Asia/Kuala_Lumpur", MLE: "Indian/Maldives",
+  CCJ: "Asia/Kolkata", TRV: "Asia/Kolkata", AMD: "Asia/Kolkata", ATQ: "Asia/Kolkata", GOX: "Asia/Kolkata", NAG: "Asia/Kolkata",
+  MUX: "Asia/Karachi", LYP: "Asia/Karachi", PEW: "Asia/Karachi", SKT: "Asia/Karachi",
+  ALA: "Asia/Almaty", TAS: "Asia/Tashkent", EVN: "Asia/Yerevan", GYD: "Asia/Baku", TBS: "Asia/Tbilisi",
+  MHD: "Asia/Tehran", IFN: "Asia/Tehran", SYZ: "Asia/Tehran",
+  BSR: "Asia/Baghdad", EBL: "Asia/Baghdad", NJF: "Asia/Baghdad", ISU: "Asia/Baghdad",
+  DAM: "Asia/Damascus", ALP: "Asia/Damascus", SLL: "Asia/Muscat",
+  MED: "Asia/Riyadh", AHB: "Asia/Riyadh", ULH: "Asia/Riyadh", ELQ: "Asia/Riyadh", HAS: "Asia/Riyadh",
+  NUM: "Asia/Riyadh", TIF: "Asia/Riyadh", RSI: "Asia/Riyadh", TUU: "Asia/Riyadh", YNB: "Asia/Riyadh",
+  BHX: "Europe/London", NCE: "Europe/Paris", DUS: "Europe/Berlin", HAM: "Europe/Berlin", VCE: "Europe/Rome",
+  AGP: "Europe/Madrid", JMK: "Europe/Athens", MLA: "Europe/Malta", LCA: "Asia/Nicosia", SVO: "Europe/Moscow",
+  ESB: "Europe/Istanbul", AYT: "Europe/Istanbul", BJV: "Europe/Istanbul", TZX: "Europe/Istanbul",
+  HBE: "Africa/Cairo", RAK: "Africa/Casablanca", PZU: "Africa/Khartoum", JIB: "Africa/Djibouti", MGQ: "Africa/Mogadishu",
+  JRO: "Africa/Dar_es_Salaam", ZNZ: "Africa/Dar_es_Salaam", SEZ: "Indian/Mahe",
+  ABV: "Africa/Lagos", KAN: "Africa/Lagos", PHC: "Africa/Lagos", FIH: "Africa/Kinshasa", NBJ: "Africa/Luanda",
+  LUN: "Africa/Lusaka", HRE: "Africa/Harare", MPM: "Africa/Maputo", CBR: "Australia/Sydney",
 };
 
 function timeZoneOffsetMs(date: Date, timeZone: string) {

@@ -2869,3 +2869,27 @@ button.flight-line {
   font-size: 12px;
   cursor: pointer;
 }
+.continent-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.continent-tabs button {
+  flex: 1 0 auto;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.continent-tabs button.active {
+  background: var(--sky);
+  color: var(--ink);
+  font-weight: 700;
+}

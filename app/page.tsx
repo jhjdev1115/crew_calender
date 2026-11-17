@@ -14,7 +14,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { airportLocalDateTimeToDate } from "./airport-timezones";
-import { cities, cityByCode } from "./cities";
+import { cities, cityByCode, continents, type Continent } from "./cities";
 import { firebaseAuth } from "./firebase-client";
 import {
   loadProPackages,
@@ -897,6 +897,7 @@ function Community({
 }) {
   const [summary, setSummary] = useState<Map<string, CitySummary>>(new Map());
   const [query, setQuery] = useState("");
+  const [continent, setContinent] = useState<Continent>("아시아");
   useEffect(() => {
     let mounted = true;
     requestJson<{ cities: CitySummary[] }>("/api/reviews")
@@ -911,10 +912,11 @@ function Community({
     };
   }, [notify]);
   const word = query.trim().toLowerCase();
-  const shown = cities.filter(
-    (item) =>
-      !word ||
-      `${item.city} ${item.country} ${item.code}`.toLowerCase().includes(word),
+  // 검색 중에는 대륙과 상관없이 전체에서 찾는다
+  const shown = cities.filter((item) =>
+    word
+      ? `${item.city} ${item.country} ${item.code}`.toLowerCase().includes(word)
+      : item.continent === continent,
   );
   const countries = [...new Set(shown.map((item) => item.country))];
   return (
@@ -931,6 +933,21 @@ function Community({
           placeholder="도시, 나라, 공항 코드"
           aria-label="도시 검색"
         />
+        {!word && (
+          <div className="continent-tabs" role="tablist" aria-label="대륙">
+            {continents.map((item) => (
+              <button
+                key={item}
+                role="tab"
+                aria-selected={item === continent}
+                className={item === continent ? "active" : ""}
+                onClick={() => setContinent(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        )}
         {countries.map((country) => (
           <section className="settings-section" key={country}>
             <h2>{country}</h2>
