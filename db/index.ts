@@ -166,6 +166,24 @@ async function initializeDatabase() {
       connection_id TEXT NOT NULL REFERENCES connections(id),
       created_at TEXT NOT NULL
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS city_reviews (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES profiles(user_id),
+      airport TEXT NOT NULL,
+      rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (user_id, airport)
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS review_reports (
+      review_id TEXT NOT NULL REFERENCES city_reviews(id),
+      reporter_user_id TEXT NOT NULL REFERENCES profiles(user_id),
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (review_id, reporter_user_id)
+    )`),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_city_reviews_airport ON city_reviews(airport, created_at)",
+    ),
     db.prepare(`CREATE TABLE IF NOT EXISTS roster_imports (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES profiles(user_id),

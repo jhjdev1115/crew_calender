@@ -257,3 +257,23 @@ test("splits free and Pro with server-verified RevenueCat subscriptions", async 
   assert.match(page, /구매 복원/);
   assert.doesNotMatch(page, /스토어 결제 연결을 준비 중/);
 });
+
+test("offers anonymous crew-written city reviews with reporting", async () => {
+  const [page, reviewsRoute, accountRoute, cities] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/reviews/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/account/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/cities.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /function Community/);
+  assert.match(page, /function CityReviews/);
+  assert.match(page, /tab\("community", "community", "후기"\)/);
+  assert.match(cities, /code: "DOH", city: "도하", country: "카타르"/);
+  assert.match(reviewsRoute, /profile\?\.role !== "crew"/);
+  assert.match(reviewsRoute, /REPORTS_TO_HIDE = 3/);
+  assert.match(reviewsRoute, /ON CONFLICT\(user_id, airport\) DO UPDATE/);
+  // 익명: 응답 SELECT 절에 작성자 식별 컬럼을 그대로 내보내지 않는다
+  assert.doesNotMatch(reviewsRoute, /SELECT r\.\*|r\.user_id,|display_name/);
+  assert.match(accountRoute, /DELETE FROM city_reviews WHERE user_id = \?/);
+});

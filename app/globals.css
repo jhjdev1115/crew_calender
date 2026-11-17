@@ -2374,7 +2374,7 @@ html[data-reduce-motion="true"] *::after {
   flex-direction: column;
   gap: 14px;
 }
-.calendar-content > .logo-lockup {
+.app-header .logo-lockup {
   flex: 0 0 auto;
   align-self: flex-start;
   zoom: 0.5;
@@ -2786,4 +2786,86 @@ button.flight-line {
 }
 .pro-body > .button + .button {
   margin-top: 8px;
+}
+.app-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.app-header > button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.city-search {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.calendar-content .settings-list strong small {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.review-body {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.review-form > div {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.review-form > div button {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--line);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+.review-form > div button.on,
+.review-card h2 span {
+  color: #e2a91f;
+}
+.review-form textarea {
+  width: 100%;
+  min-height: 120px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--ink);
+  resize: vertical;
+}
+.review-card p {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.review-card > button {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
 }

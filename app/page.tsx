@@ -14,6 +14,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { airportLocalDateTimeToDate } from "./airport-timezones";
+import { cities, cityByCode } from "./cities";
 import { firebaseAuth } from "./firebase-client";
 import {
   loadProPackages,
@@ -43,6 +44,8 @@ type Screen =
   | "role"
   | "profile"
   | "home"
+  | "community"
+  | "city"
   | "calendar"
   | "duty"
   | "quick"
@@ -405,8 +408,9 @@ const navIcons = {
   friends:
     "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14.5a6.5 6.5 0 0 1 3.5 5.5",
   add: "M12 5v14M5 12h14",
+  community: "M5 5h14v11h-8l-4 4v-4H5z",
   settings:
-    "M4 7h10M18 7h2M4 17h2M10 17h10M16 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM8 14.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+    "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.7a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 2 1.2l.4 2.7h4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z",
 };
 function NavIcon({ name }: { name: keyof typeof navIcons }) {
   return (
@@ -425,12 +429,22 @@ function NavIcon({ name }: { name: keyof typeof navIcons }) {
     </svg>
   );
 }
+function AppHeader({ go }: { go: (screen: Screen) => void }) {
+  return (
+    <header className="app-header">
+      <Logo compact />
+      <button onClick={() => go("settings")} aria-label="설정">
+        <NavIcon name="settings" />
+      </button>
+    </header>
+  );
+}
 function BottomNav({
   active,
   go,
   role,
 }: {
-  active: "home" | "calendar" | "link" | "settings";
+  active?: "home" | "calendar" | "community" | "link";
   go: (screen: Screen) => void;
   role: Role;
 }) {
@@ -455,8 +469,8 @@ function BottomNav({
       >
         <NavIcon name="add" />
       </button>
+      {tab("community", "community", "후기")}
       {tab("link", "friends", "친구")}
-      {tab("settings", "settings", "설정")}
     </nav>
   );
 }
@@ -783,7 +797,7 @@ function NextDutyHome({
   return (
     <main className="screen calendar-screen">
       <section className="calendar-content">
-        <Logo compact />
+        <AppHeader go={go} />
         <button
           className="next-duty"
           disabled={!next}
@@ -854,6 +868,255 @@ function NextDutyHome({
         )}
       </section>
       <BottomNav active="home" go={go} role={role} />
+    </main>
+  );
+}
+
+type CitySummary = { airport: string; count: number; average: number };
+type Review = {
+  id: string;
+  rating: number;
+  body: string;
+  createdAt: string;
+  mine: boolean;
+};
+const fetchReviews = (code: string) =>
+  requestJson<{ reviews: Review[] }>(`/api/reviews?airport=${code}`);
+const stars = (rating: number) => "★".repeat(rating) + "☆".repeat(5 - rating);
+
+function Community({
+  role,
+  go,
+  openCity,
+  notify,
+}: {
+  role: Role;
+  go: (s: Screen) => void;
+  openCity: (code: string) => void;
+  notify: (message: string) => void;
+}) {
+  const [summary, setSummary] = useState<Map<string, CitySummary>>(new Map());
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    let mounted = true;
+    requestJson<{ cities: CitySummary[] }>("/api/reviews")
+      .then((data) => {
+        if (mounted) setSummary(new Map(data.cities.map((item) => [item.airport, item])));
+      })
+      .catch(() => {
+        if (mounted) notify("후기를 불러오지 못했어요.");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [notify]);
+  const word = query.trim().toLowerCase();
+  const shown = cities.filter(
+    (item) =>
+      !word ||
+      `${item.city} ${item.country} ${item.code}`.toLowerCase().includes(word),
+  );
+  const countries = [...new Set(shown.map((item) => item.country))];
+  return (
+    <main className="screen calendar-screen">
+      <section className="calendar-content">
+        <AppHeader go={go} />
+        <div className="month-toolbar">
+          <h1>체류지 후기</h1>
+        </div>
+        <input
+          className="city-search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="도시, 나라, 공항 코드"
+          aria-label="도시 검색"
+        />
+        {countries.map((country) => (
+          <section className="settings-section" key={country}>
+            <h2>{country}</h2>
+            <div className="settings-list">
+              {shown
+                .filter((item) => item.country === country)
+                .map((item) => {
+                  const stat = summary.get(item.code);
+                  return (
+                    <button key={item.code} onClick={() => openCity(item.code)}>
+                      <strong>
+                        {item.city} <small>{item.code}</small>
+                      </strong>
+                      <em>
+                        {stat ? `★ ${stat.average.toFixed(1)} · ${stat.count}개` : "첫 후기 대기 중"}
+                      </em>
+                      <b>›</b>
+                    </button>
+                  );
+                })}
+            </div>
+          </section>
+        ))}
+        {countries.length === 0 && <p className="agenda-empty">검색된 도시가 없어요.</p>}
+      </section>
+      <BottomNav active="community" go={go} role={role} />
+    </main>
+  );
+}
+
+function CityReviews({
+  code,
+  role,
+  back,
+  notify,
+}: {
+  code: string;
+  role: Role;
+  back: () => void;
+  notify: (message: string) => void;
+}) {
+  const city = cityByCode.get(code);
+  const [reviews, setReviews] = useState<Review[] | null>(null);
+  const [rating, setRating] = useState(0);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    fetchReviews(code)
+      .then((data) => {
+        if (!mounted) return;
+        setReviews(data.reviews);
+        const own = data.reviews.find((item) => item.mine);
+        if (own) {
+          setRating(own.rating);
+          setText(own.body);
+        }
+      })
+      .catch(() => {
+        if (mounted) notify("후기를 불러오지 못했어요.");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [code, notify]);
+  const act = async (request: () => Promise<unknown>, done: string) => {
+    setBusy(true);
+    try {
+      await request();
+      setReviews((await fetchReviews(code)).reviews);
+      notify(done);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "요청을 처리하지 못했어요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const mine = reviews?.find((item) => item.mine);
+  const average = reviews?.length
+    ? reviews.reduce((sum, item) => sum + item.rating, 0) / reviews.length
+    : 0;
+  return (
+    <main className="screen form-screen">
+      <TopBar title={city ? `${city.city} 후기` : "후기"} onBack={back} />
+      <section className="screen-body review-body">
+        <div className="next-duty review-summary">
+          <span>
+            {city?.country} · {code}
+          </span>
+          <strong>{reviews?.length ? `★ ${average.toFixed(1)}` : "–"}</strong>
+          <small>
+            {reviews === null
+              ? "후기를 불러오는 중이에요"
+              : reviews.length
+                ? `후기 ${reviews.length}개 · 모든 후기는 익명이에요`
+                : "아직 후기가 없어요. 첫 후기를 남겨보세요."}
+          </small>
+        </div>
+        {role === "crew" ? (
+          <section className="agenda review-form">
+            <h2>{mine ? "내 후기 고치기" : "후기 쓰기"}</h2>
+            <div role="radiogroup" aria-label="별점">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={rating === value}
+                  aria-label={`${value}점`}
+                  className={value <= rating ? "on" : ""}
+                  onClick={() => setRating(value)}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={text}
+              maxLength={1000}
+              onChange={(event) => setText(event.target.value)}
+              placeholder="호텔, 교통, 먹거리, 치안처럼 다음 승무원에게 도움이 될 이야기를 적어주세요. 이름은 표시되지 않아요."
+              aria-label="후기 내용"
+            />
+            <button
+              className="button button-primary"
+              disabled={busy || rating === 0 || text.trim().length < 10}
+              onClick={() =>
+                act(
+                  () =>
+                    requestJson("/api/reviews", {
+                      method: "POST",
+                      body: JSON.stringify({ airport: code, rating, body: text }),
+                    }),
+                  "후기를 저장했어요.",
+                )
+              }
+            >
+              {mine ? "후기 고치기" : "익명으로 등록"}
+            </button>
+          </section>
+        ) : (
+          <p className="agenda-empty">후기는 승무원 계정만 쓸 수 있어요.</p>
+        )}
+        {reviews?.map((item) => (
+          <article className="agenda review-card" key={item.id}>
+            <h2>
+              <span>{stars(item.rating)}</span>
+              {new Date(item.createdAt).toLocaleDateString("ko-KR")}
+              {item.mine && <em className="event-flight">내 후기</em>}
+            </h2>
+            <p>{item.body}</p>
+            {item.mine ? (
+              <button
+                disabled={busy}
+                onClick={() => {
+                  if (!window.confirm("내 후기를 삭제할까요?")) return;
+                  setRating(0);
+                  setText("");
+                  void act(
+                    () => requestJson(`/api/reviews?id=${item.id}`, { method: "DELETE" }),
+                    "후기를 삭제했어요.",
+                  );
+                }}
+              >
+                삭제
+              </button>
+            ) : (
+              <button
+                disabled={busy}
+                onClick={() => {
+                  if (!window.confirm("이 후기를 신고할까요? 신고한 후기는 내게 보이지 않아요.")) return;
+                  void act(
+                    () =>
+                      requestJson("/api/reviews", {
+                        method: "POST",
+                        body: JSON.stringify({ action: "report", id: item.id }),
+                      }),
+                    "신고했어요.",
+                  );
+                }}
+              >
+                신고
+              </button>
+            )}
+          </article>
+        ))}
+      </section>
     </main>
   );
 }
@@ -966,7 +1229,7 @@ function CalendarHome({
   return (
     <main className="screen calendar-screen">
       <section className="calendar-content">
-        <Logo compact />
+        <AppHeader go={go} />
         <div className="month-toolbar">
           <h1>{formatMonth(month)}</h1>
           <button aria-label="이전 달" onClick={() => changeMonth(-1)}>
@@ -2437,7 +2700,7 @@ function NotificationSettings({
           <em>자동 · 기기 시간대</em>
         </div>
       </section>
-      <BottomNav active="settings" go={go} role={role} />
+      <BottomNav go={go} role={role} />
     </main>
   );
 }
@@ -2823,9 +3086,7 @@ function Settings({
   );
   return (
     <main className="screen form-screen settings-screen">
-      <header className="title-only">
-        <h1>설정</h1>
-      </header>
+      <TopBar title="설정" onBack={() => go("home")} />
       <section className="screen-body settings-page-body">
         <article className="profile-summary">
           <div className="avatar avatar-large">
@@ -2881,7 +3142,7 @@ function Settings({
           <b>›</b>
         </button>
       </section>
-      <BottomNav active="settings" go={go} role={profile.role ?? "crew"} />
+      <BottomNav go={go} role={profile.role ?? "crew"} />
     </main>
   );
 }
@@ -3019,6 +3280,7 @@ export default function Home() {
   }, []);
   const [currentMonth, setCurrentMonth] = useState(monthKey());
   const [selectedDate, setSelectedDate] = useState(todayKey());
+  const [selectedCity, setSelectedCity] = useState("");
   const [loadingDuties, setLoadingDuties] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const notify = useCallback((message: string) => {
@@ -3115,7 +3377,10 @@ export default function Home() {
           case "delete":
             return "settings";
           case "settings":
-            return "calendar";
+          case "community":
+            return "home";
+          case "city":
+            return "community";
         }
       });
       window.scrollTo({ top: 0, behavior: "auto" });
@@ -3511,6 +3776,27 @@ export default function Home() {
             go={go}
             selectDate={setSelectedDate}
             primaryFriendId={effectivePrimaryFriendId}
+          />
+        );
+      case "community":
+        return (
+          <Community
+            role={role}
+            go={go}
+            openCity={(code) => {
+              setSelectedCity(code);
+              go("city");
+            }}
+            notify={notify}
+          />
+        );
+      case "city":
+        return (
+          <CityReviews
+            code={selectedCity}
+            role={role}
+            back={() => go("community")}
+            notify={notify}
           />
         );
       case "calendar":
