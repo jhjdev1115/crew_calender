@@ -47,6 +47,7 @@ type Screen =
   | "community"
   | "city"
   | "calendar"
+  | "logbook"
   | "duty"
   | "quick"
   | "roster"
@@ -884,6 +885,228 @@ const fetchReviews = (code: string) =>
   requestJson<{ reviews: Review[] }>(`/api/reviews?airport=${code}`);
 const stars = (rating: number) => "★".repeat(rating) + "☆".repeat(5 - rating);
 
+type Logbook = { duties: Duty[]; locked: boolean; now: number };
+function logbookStats(data: Logbook, base: string | null) {
+  // 로스터에는 앞으로의 비행도 있어서, 이미 끝난 것만 기록으로 센다
+  const done = (duty: Duty) => {
+    const end =
+      airportLocalDateTimeToDate(
+        duty.end_at ?? duty.start_at,
+        duty.arr_airport,
+        duty.event_tz,
+      )?.getTime() ?? Date.parse(duty.start_date ?? "");
+    return end <= data.now;
+  };
+  const flights = data.duties.filter(
+    (duty) => duty.type === "flight" && duty.start_at && done(duty),
+  );
+  const monthly = Array<number>(12).fill(0);
+  const visits = new Map<string, number>();
+  const months = new Map<string, { flights: Duty[]; minutes: number }>();
+  let minutes = 0;
+  for (const flight of flights) {
+    const spent = flightDurationMinutes(flight);
+    const key = flight.start_at!.slice(0, 7);
+    minutes += spent;
+    monthly[Number(key.slice(5)) - 1] += spent;
+    const group = months.get(key) ?? { flights: [], minutes: 0 };
+    group.flights.push(flight);
+    group.minutes += spent;
+    months.set(key, group);
+    const code = flight.arr_airport;
+    if (code && code !== base) visits.set(code, (visits.get(code) ?? 0) + 1);
+  }
+  const layoverDays = data.duties
+    .filter((duty) => duty.type === "layover" && done(duty))
+    .reduce((sum, duty) => {
+      const start = duty.start_date ?? duty.start_at?.slice(0, 10) ?? "";
+      const end = duty.end_date ?? duty.end_at?.slice(0, 10) ?? start;
+      const days = Math.round((Date.parse(end) - Date.parse(start)) / 86_400_000);
+      return sum + Math.max(1, days || 0);
+    }, 0);
+  return {
+    minutes,
+    legs: flights.length,
+    monthly,
+    months: [...months],
+    layoverDays,
+    cities: visits.size,
+    countries: new Set(
+      [...visits.keys()].map((code) => cityByCode.get(code)?.country ?? code),
+    ).size,
+    top: [...visits].sort((a, b) => b[1] - a[1]).slice(0, 3),
+  };
+}
+const cityName = (code?: string | null) =>
+  code ? (cityByCode.get(code)?.city ?? code) : "–";
+
+function FlightLog({
+  baseAirport,
+  go,
+  back,
+  notify,
+}: {
+  baseAirport: string | null;
+  go: (s: Screen) => void;
+  back: () => void;
+  notify: (message: string) => void;
+}) {
+  const thisYear = new Date().getFullYear();
+  const [year, setYear] = useState(thisYear);
+  const [tab, setTab] = useState<"stats" | "log">("stats");
+  const [data, setData] = useState<Logbook | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    requestJson<Omit<Logbook, "now">>(`/api/logbook?year=${year}`)
+      .then((result) => {
+        if (mounted) setData({ ...result, now: Date.now() });
+      })
+      .catch(() => {
+        if (mounted) notify("비행 기록을 불러오지 못했어요.");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [year, notify]);
+  const stats = useMemo(
+    () => (data ? logbookStats(data, baseAirport) : null),
+    [data, baseAirport],
+  );
+  const locked = data?.locked ?? false;
+  const peak = Math.max(1, ...(stats?.monthly ?? []));
+  const lock = (title: string) => (
+    <div className="log-lock">
+      <strong>{title}</strong>
+      <p>쌓아둔 기록 전체와 통계를 볼 수 있어요.</p>
+      <button className="button button-primary" onClick={() => go("pro")}>
+        Pro 시작하기
+      </button>
+    </div>
+  );
+  return (
+    <main className="screen form-screen">
+      <TopBar title="비행 기록" onBack={back} />
+      <section className="screen-body review-body">
+        {!locked && (
+          <div className="month-toolbar">
+            <button aria-label="이전 해" onClick={() => setYear(year - 1)}>
+              ‹
+            </button>
+            <h2>{year}년</h2>
+            <button
+              aria-label="다음 해"
+              disabled={year >= thisYear}
+              onClick={() => setYear(year + 1)}
+            >
+              ›
+            </button>
+          </div>
+        )}
+        <div className="continent-tabs" role="tablist">
+          {(["stats", "log"] as const).map((item) => (
+            <button
+              key={item}
+              role="tab"
+              aria-selected={tab === item}
+              className={tab === item ? "active" : ""}
+              onClick={() => setTab(item)}
+            >
+              {item === "stats" ? "통계" : "로그북"}
+            </button>
+          ))}
+        </div>
+        {!stats ? (
+          <p className="agenda-empty">비행 기록을 불러오는 중이에요</p>
+        ) : tab === "stats" ? (
+          locked ? (
+            lock("비행 통계는 Pro에서")
+          ) : (
+            <>
+              <div className="next-duty log-total">
+                <span>{year}년 총 비행시간</span>
+                <strong>{formatFlightMinutes(stats.minutes)}</strong>
+                <div className="log-bars" aria-hidden="true">
+                  {stats.monthly.map((value, index) => (
+                    <i key={index} style={{ height: `${(value / peak) * 100}%` }} />
+                  ))}
+                </div>
+                <small>
+                  <span>1월</span>
+                  <span>6월</span>
+                  <span>12월</span>
+                </small>
+              </div>
+              <dl className="log-grid">
+                {[
+                  ["비행 구간", stats.legs],
+                  ["방문 도시", stats.cities],
+                  ["방문 국가", stats.countries],
+                  ["레이오버", `${stats.layoverDays}일`],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              {stats.top.length > 0 && (
+                <section className="agenda log-top">
+                  <h2>자주 간 곳</h2>
+                  {stats.top.map(([code, count]) => (
+                    <p key={code}>
+                      <span>
+                        {cityName(code)} {code}
+                      </span>
+                      <em>{count}회</em>
+                      <i style={{ width: `${(count / stats.top[0][1]) * 100}%` }} />
+                    </p>
+                  ))}
+                </section>
+              )}
+              <p className="log-note">
+                등록한 일정으로 계산한 값이라 공식 비행 기록과 다를 수 있어요.
+              </p>
+            </>
+          )
+        ) : (
+          <>
+            {stats.months.length === 0 && (
+              <p className="agenda-empty">아직 끝난 비행이 없어요.</p>
+            )}
+            {stats.months.map(([key, group]) => (
+              <section className="agenda log-month" key={key}>
+                <h2>
+                  {Number(key.slice(5))}월
+                  <span>
+                    {group.flights.length}구간 · {formatFlightMinutes(group.minutes)}
+                  </span>
+                </h2>
+                <ul>
+                  {group.flights.map((flight) => (
+                    <li className="agenda-row" key={flight.id}>
+                      <b>{flight.arr_airport ?? "–"}</b>
+                      <div>
+                        <strong>
+                          {cityName(flight.dep_airport)} → {cityName(flight.arr_airport)}
+                        </strong>
+                        <small>
+                          {flight.start_at!.slice(5, 10).replace("-", ".")}
+                          {flight.flight_no ? ` · ${flight.flight_no}` : ""}
+                        </small>
+                      </div>
+                      <span>{formatFlightMinutes(flightDurationMinutes(flight))}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+            {locked && lock("이전 기록은 Pro에서")}
+          </>
+        )}
+      </section>
+    </main>
+  );
+}
 function Community({
   role,
   go,
@@ -1340,7 +1563,12 @@ function CalendarHome({
           )}
         </section>
         {subscription.plan === "pro" ? (
-          <section className="flight-line" aria-label="이번 달 비행시간 진행률">
+          <button
+            className="flight-line"
+            aria-label="이번 달 비행시간 진행률, 비행 기록 열기"
+            disabled={role !== "crew"}
+            onClick={() => go("logbook")}
+          >
             <span>
               {role === "partner" ? `${partnerName}님 ` : ""}이번 달 비행
             </span>
@@ -1356,10 +1584,13 @@ function CalendarHome({
               {formatFlightMinutes(flightStats.completedMinutes)} /{" "}
               {formatFlightMinutes(flightStats.totalMinutes)}
             </strong>
-          </section>
+          </button>
         ) : (
-          <button className="flight-line" onClick={() => go("pro")}>
-            <span>이번 달 비행시간 통계</span>
+          <button
+            className="flight-line"
+            onClick={() => go(role === "crew" ? "logbook" : "pro")}
+          >
+            <span>{role === "crew" ? "비행 기록 · 통계" : "이번 달 비행시간 통계"}</span>
             <b>Pro</b>
           </button>
         )}
@@ -3375,6 +3606,7 @@ export default function Home() {
             return profile?.role ? "settings" : "role";
           case "duty":
           case "roster":
+          case "logbook":
             return "calendar";
           case "quick":
             return "duty";
@@ -3804,6 +4036,15 @@ export default function Home() {
               setSelectedCity(code);
               go("city");
             }}
+            notify={notify}
+          />
+        );
+      case "logbook":
+        return (
+          <FlightLog
+            baseAirport={safeProfile.base_airport}
+            go={go}
+            back={() => go("calendar")}
             notify={notify}
           />
         );

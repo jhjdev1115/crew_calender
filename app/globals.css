@@ -2893,3 +2893,105 @@ button.flight-line {
   color: var(--ink);
   font-weight: 700;
 }
+/* 비행 기록 */
+.log-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 70px;
+  margin-top: 8px;
+}
+.log-bars i {
+  flex: 1;
+  min-height: 3px;
+  border-radius: 5px 5px 0 0;
+  background: var(--sky);
+}
+.log-total > strong {
+  font-size: 32px;
+  letter-spacing: -1px;
+}
+.log-total > small,
+.log-top p,
+.log-month h2 {
+  display: flex;
+  justify-content: space-between;
+}
+.log-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0;
+}
+.log-grid > div,
+.log-lock {
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--surface);
+}
+.log-grid dt,
+.log-month small,
+.log-month li > span,
+.log-top em,
+.log-note,
+.log-lock p {
+  font-size: 12px;
+  font-style: normal;
+  color: var(--muted);
+}
+.log-grid dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+.log-top p {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+.log-top i {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--sky);
+}
+.log-month li > b {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--sky);
+  font-size: 12px;
+}
+.log-month li > span {
+  flex: 0 0 auto;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.log-month li > div {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  font-size: 14px;
+}
+.log-note {
+  margin: 0;
+  text-align: center;
+}
+.log-lock {
+  display: grid;
+  gap: 4px;
+  background: var(--blue-soft);
+  text-align: center;
+}
+.log-lock p {
+  margin: 0 0 8px;
+}
+.flight-line:disabled {
+  opacity: 1;
+  cursor: default;
+}
