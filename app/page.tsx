@@ -369,16 +369,17 @@ function Logo({ compact = false }: { compact?: boolean }) {
       aria-label="CrewSync"
     >
       <svg className="logo-mark" viewBox="0 0 120 120" aria-hidden="true">
-        <defs>
-          <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#b9d6fc" />
-            <stop offset="0.55" stopColor="#c3dff4" />
-            <stop offset="1" stopColor="#c9ebdd" />
-          </linearGradient>
-        </defs>
-        <rect width="120" height="120" rx="27" fill="url(#logo-bg)" />
-        <g
+        <rect
+          x="0.5"
+          y="0.5"
+          width="119"
+          height="119"
+          rx="26.5"
           fill="#fff"
+          stroke="#e1e9f4"
+        />
+        <g
+          fill="#1294f6"
           transform="translate(61.5 58.5) rotate(45) scale(0.8) translate(-60 -61)"
         >
           <path d="M60 18C65 18 67 26 67 34V86C67 94 64 102 60 104C56 102 53 94 53 86V34C53 26 55 18 60 18Z" />

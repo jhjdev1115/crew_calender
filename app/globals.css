@@ -4,11 +4,12 @@
   --ink: #1f2a44;
   --muted: #6d788c;
   --line: #e1e9f4;
-  /* --blue is text-safe on white; --sky is the pastel fill and takes ink text */
-  --blue: #2b6fd0;
-  --blue-dark: #1f5bb5;
-  --blue-soft: #e6f0fc;
-  --sky: #6fa8f0;
+  /* --sky is the trade color: logo, fills, large text. --blue is its text-safe shade for small text */
+  --blue: #0b6fd1;
+  --blue-dark: #0959a8;
+  --blue-soft: #e5f3fe;
+  --sky: #1294f6;
+  --on-sky: #ffffff;
   --bg: #f1f6fd;
   --mint: #ddf3e8;
   --green: #7ccba6;
@@ -158,7 +159,7 @@ button:disabled {
   height: 48px;
 }
 .logo-lockup strong span {
-  color: var(--blue);
+  color: var(--sky);
 }
 .logo-lockup strong {
   font-size: 34px;
@@ -370,7 +371,7 @@ button:disabled {
   transform: scale(0.985);
 }
 .button-primary {
-  color: var(--ink);
+  color: var(--on-sky);
   background: var(--sky);
 }
 .button-primary:hover {
@@ -477,7 +478,7 @@ button:disabled {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: var(--ink);
+  color: var(--on-sky);
   background: var(--sky);
   font-weight: 900;
 }
@@ -640,7 +641,7 @@ button:disabled {
   display: inline-grid;
   place-items: center;
   border-radius: 17px;
-  color: var(--ink);
+  color: var(--on-sky);
   background: var(--sky);
   font-size: 24px;
 }
@@ -829,7 +830,7 @@ button:disabled {
   cursor: pointer;
 }
 .duty-tabs button.active {
-  color: var(--ink);
+  color: var(--on-sky);
   border-color: var(--blue);
   background: var(--sky);
 }
@@ -1055,7 +1056,7 @@ button:disabled {
   min-height: 38px;
   padding: 8px 11px;
   border-radius: 11px;
-  color: var(--ink);
+  color: var(--on-sky);
   background: var(--sky);
   display: grid;
   place-items: center;
@@ -1488,7 +1489,7 @@ button:disabled {
   font-weight: 800;
 }
 .invite-card button:last-child {
-  color: var(--ink);
+  color: var(--on-sky);
   background: var(--sky);
 }
 .small-button {
@@ -1613,7 +1614,7 @@ button:disabled {
   padding: 9px 11px;
   border: 1px solid var(--blue);
   border-radius: 9px;
-  color: var(--ink);
+  color: var(--on-sky);
   background: var(--sky);
   font-size: 11px;
   font-weight: 800;
@@ -1894,6 +1895,7 @@ html[data-high-contrast="true"] {
   --muted: #3e4858;
   --line: #9ca8b8;
   --blue: #004fd1;
+  --sky: #0b6fd1;
 }
 html[data-high-contrast="true"] button,
 html[data-high-contrast="true"] input,
@@ -2138,7 +2140,7 @@ html[data-reduce-motion="true"] *::after {
   display: grid;
   place-items: center;
   border-radius: 10px;
-  color: var(--ink);
+  color: var(--on-sky);
   background: var(--sky);
   font-size: 19px;
   font-weight: 900;
@@ -2655,7 +2657,7 @@ button.flight-line {
   margin: 0 8px;
   border-radius: 50%;
   background: var(--sky);
-  color: var(--ink);
+  color: var(--on-sky);
   place-items: center;
 }
 .shared-days {
@@ -2894,7 +2896,7 @@ button.flight-line {
 }
 .continent-tabs button.active {
   background: var(--sky);
-  color: var(--ink);
+  color: var(--on-sky);
   font-weight: 700;
 }
 /* 비행 기록 */
@@ -2969,6 +2971,7 @@ button.flight-line {
   height: 40px;
   border-radius: 50%;
   background: var(--sky);
+  color: var(--on-sky);
   font-size: 12px;
 }
 .log-month li > span {
