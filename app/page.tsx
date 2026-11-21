@@ -64,7 +64,14 @@ type Screen =
   | "settings"
   | "delete";
 type Role = "crew" | "partner";
-type DutyType = "flight" | "standby" | "off" | "layover" | "training" | "leave";
+type DutyType =
+  | "flight"
+  | "standby"
+  | "off"
+  | "layover"
+  | "training"
+  | "leave"
+  | "custom";
 type Profile = {
   user_id: string;
   email: string;
@@ -91,6 +98,7 @@ type Duty = {
   layover_city?: string | null;
   hotel_name?: string | null;
   note?: string | null;
+  title?: string | null;
   source?: "mine" | "partner";
 };
 type NotificationState = {
@@ -161,6 +169,7 @@ type DutyPayload = {
   layoverCity?: string;
   hotelName?: string;
   note?: string;
+  title?: string;
 };
 type RosterItem = DutyPayload & {
   id: string;
@@ -176,6 +185,7 @@ const dutyLabels: Record<DutyType, string> = {
   layover: "체류",
   training: "교육",
   leave: "연차",
+  custom: "기타",
 };
 const defaultNotifications: NotificationState = {
   all: true,
@@ -257,12 +267,16 @@ function dutyLabel(duty: Duty) {
   if (duty.type === "flight")
     return `비행${duty.flight_no ? ` ${duty.flight_no}` : ""} ${duty.dep_airport ?? "출발"} → ${duty.arr_airport ?? "도착"}`;
   if (duty.type === "layover") return `체류 ${duty.layover_city ?? ""}`.trim();
-  return dutyLabels[duty.type];
+  return typeLabel(duty);
+}
+// 직접 입력한 일정은 사용자가 적은 이름으로 보여준다
+function typeLabel(duty: Duty) {
+  return (duty.type === "custom" && duty.title) || dutyLabels[duty.type];
 }
 function cellLabel(duty: Duty) {
   if (duty.type === "flight") return duty.arr_airport ?? dutyLabels.flight;
   if (duty.type === "layover") return duty.layover_city ?? dutyLabels.layover;
-  return dutyLabels[duty.type];
+  return typeLabel(duty);
 }
 function isOffDay(list: Duty[]) {
   return list.some((duty) => duty.type === "off" || duty.type === "leave");
@@ -775,7 +789,11 @@ function NextDutyHome({
   // 파트너에게는 친구(승무원)의 출근이 주 내용
   // shortcut: 이번 달에 불러온 일정만 본다, 월말에 다음 달 출근까지 보여주려면 /api/duties 를 기간 조회로 넓힐 것
   const upcoming = (role === "crew" ? duties : friendDuties)
-    .filter((duty) => !isOffDay([duty]) && dutyEnd(duty) >= today)
+    // 직접 입력한 일정은 출근이 아닐 수 있어서 뺀다
+    .filter(
+      (duty) =>
+        !isOffDay([duty]) && duty.type !== "custom" && dutyEnd(duty) >= today,
+    )
     .sort((a, b) =>
       (a.start_at ?? a.start_date ?? "").localeCompare(
         b.start_at ?? b.start_date ?? "",
@@ -1616,7 +1634,7 @@ function DutyForm({
   const allowed: DutyType[] =
     role === "partner"
       ? ["off", "leave"]
-      : ["flight", "standby", "off", "layover", "training", "leave"];
+      : ["flight", "standby", "off", "layover", "training", "leave", "custom"];
   const [type, setType] = useState<DutyType>(
     role === "partner" ? "off" : "flight",
   );
@@ -1631,8 +1649,10 @@ function DutyForm({
   const [city, setCity] = useState("");
   const [hotel, setHotel] = useState("");
   const [note, setNote] = useState("");
+  const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const allDay = type === "off" || type === "leave";
+  const untitled = type === "custom" && !title.trim();
   const departureBasis = /^[A-Z]{3}$/.test(dep) ? dep : "출발 공항";
   const arrivalBasis = /^[A-Z]{3}$/.test(arr) ? arr : "도착 공항";
   const submit = async (again: boolean) => {
@@ -1652,6 +1672,7 @@ function DutyForm({
           layoverCity: city,
           hotelName: hotel,
           note,
+          title,
         },
         again,
       );
@@ -1659,6 +1680,7 @@ function DutyForm({
         setFlightNo("");
         setArr("");
         setNote("");
+        setTitle("");
       }
     } finally {
       setSaving(false);
@@ -1700,6 +1722,17 @@ function DutyForm({
           </div>
         ) : (
           <>
+            {type === "custom" && (
+              <label className="field-label">
+                일정 이름
+                <input
+                  value={title}
+                  maxLength={20}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="예: 건강검진 · 친구에게도 보여요"
+                />
+              </label>
+            )}
             {type === "flight" && (
               <>
                 <label className="field-label">
@@ -1830,14 +1863,14 @@ function DutyForm({
       <div className="dual-sticky">
         <button
           className="button button-ghost"
-          disabled={saving}
+          disabled={saving || untitled}
           onClick={() => submit(true)}
         >
           저장 후 계속 등록
         </button>
         <button
           className="button button-primary"
-          disabled={saving}
+          disabled={saving || untitled}
           onClick={() => submit(false)}
         >
           {saving ? "저장 중…" : "저장"}
@@ -2512,7 +2545,7 @@ function FriendPage({
                   </small>
                 </span>
                 {today && (
-                  <em className={`event-${today.type}`}>오늘 {dutyLabels[today.type]}</em>
+                  <em className={`event-${today.type}`}>오늘 {typeLabel(today)}</em>
                 )}
               </button>
               );
@@ -2606,7 +2639,7 @@ function FriendPage({
               <div className="friend-schedule-list">
                 {selectedDuties.length ? selectedDuties.map((duty) => (
                   <article className={`saved-duty ${duty.type}`} key={duty.id}>
-                    <div><Mark tone={["off", "leave"].includes(duty.type) ? "green" : "blue"}>{dutyLabels[duty.type]}</Mark></div>
+                    <div><Mark tone={["off", "leave"].includes(duty.type) ? "green" : "blue"}>{typeLabel(duty)}</Mark></div>
                     <strong>{dutyLabel(duty)}</strong>
                     <span>{duty.type === "flight" ? formatLocalFlightRange(duty) : formatDutyRange(duty)}</span>
                     {duty.type === "flight" && formatKoreanFlightRange(duty) && (

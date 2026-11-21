@@ -78,6 +78,37 @@ export function ensureDatabase(): Promise<void> {
   return initialized;
 }
 
+const dutyColumns =
+  "id, user_id, type, roster_month, start_date, end_date, start_at, end_at, event_tz, flight_no, dep_airport, arr_airport, aircraft, layover_city, hotel_name, note, version, created_at, updated_at, deleted_at";
+const dutyIndexes = [
+  "CREATE INDEX IF NOT EXISTS idx_duties_user_roster ON duties(user_id, roster_month)",
+  "CREATE INDEX IF NOT EXISTS idx_duties_user_start_date ON duties(user_id, start_date)",
+  "CREATE INDEX IF NOT EXISTS idx_duties_user_start_at ON duties(user_id, start_at)",
+];
+const dutiesDdl = (table: string) => `CREATE TABLE IF NOT EXISTS ${table} (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES profiles(user_id),
+      type TEXT NOT NULL CHECK (type IN ('flight','standby','off','layover','training','leave','custom')),
+      roster_month TEXT NOT NULL,
+      start_date TEXT,
+      end_date TEXT,
+      start_at TEXT,
+      end_at TEXT,
+      event_tz TEXT,
+      flight_no TEXT,
+      dep_airport TEXT,
+      arr_airport TEXT,
+      aircraft TEXT,
+      layover_city TEXT,
+      hotel_name TEXT,
+      note TEXT,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+      title TEXT
+    )`;
+
 async function initializeDatabase() {
   const db = getD1();
   await db.batch([
@@ -102,28 +133,7 @@ async function initializeDatabase() {
       current_period_end TEXT,
       updated_at TEXT NOT NULL
     )`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS duties (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES profiles(user_id),
-      type TEXT NOT NULL CHECK (type IN ('flight','standby','off','layover','training','leave')),
-      roster_month TEXT NOT NULL,
-      start_date TEXT,
-      end_date TEXT,
-      start_at TEXT,
-      end_at TEXT,
-      event_tz TEXT,
-      flight_no TEXT,
-      dep_airport TEXT,
-      arr_airport TEXT,
-      aircraft TEXT,
-      layover_city TEXT,
-      hotel_name TEXT,
-      note TEXT,
-      version INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      deleted_at TEXT
-    )`),
+    db.prepare(dutiesDdl("duties")),
     db.prepare(`CREATE TABLE IF NOT EXISTS notification_preferences (
       user_id TEXT PRIMARY KEY REFERENCES profiles(user_id),
       all_enabled INTEGER NOT NULL DEFAULT 1,
@@ -219,15 +229,6 @@ async function initializeDatabase() {
       sent_at TEXT NOT NULL
     )`),
     db.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_duties_user_roster ON duties(user_id, roster_month)",
-    ),
-    db.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_duties_user_start_date ON duties(user_id, start_date)",
-    ),
-    db.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_duties_user_start_at ON duties(user_id, start_at)",
-    ),
-    db.prepare(
       "CREATE UNIQUE INDEX IF NOT EXISTS idx_invite_codes_hash ON invite_codes(code_hash)",
     ),
     db.prepare(
@@ -272,6 +273,23 @@ async function initializeDatabase() {
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_notification_deliveries_sent ON notification_deliveries(sent_at)",
     ),
+    ...dutyIndexes.map((sql) => db.prepare(sql)),
   ]);
+  // SQLite는 CHECK를 못 고쳐서, 'custom' 유형이 없는 예전 duties 테이블은 한 번 새로 만든다
+  const current = await db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'duties'")
+    .first<{ sql: string }>();
+  if (current && !current.sql.includes("'custom'")) {
+    await db.batch([
+      db.prepare("DROP TABLE IF EXISTS duties_new"),
+      db.prepare(dutiesDdl("duties_new")),
+      db.prepare(
+        `INSERT INTO duties_new (${dutyColumns}) SELECT ${dutyColumns} FROM duties`,
+      ),
+      db.prepare("DROP TABLE duties"),
+      db.prepare("ALTER TABLE duties_new RENAME TO duties"),
+      ...dutyIndexes.map((sql) => db.prepare(sql)),
+    ]);
+  }
   await db.prepare("PRAGMA optimize").run();
 }

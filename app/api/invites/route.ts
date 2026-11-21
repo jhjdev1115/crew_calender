@@ -61,7 +61,8 @@ export async function GET(request: Request) {
                 d.start_at, d.end_at, d.event_tz, d.flight_no,
                 CASE WHEN d.type = 'flight' THEN d.dep_airport ELSE NULL END AS dep_airport,
                 CASE WHEN d.type = 'flight' THEN d.arr_airport ELSE NULL END AS arr_airport,
-                CASE WHEN d.type = 'layover' THEN d.layover_city ELSE NULL END AS layover_city
+                CASE WHEN d.type = 'layover' THEN d.layover_city ELSE NULL END AS layover_city,
+                d.title
               FROM duties d
               JOIN connections c ON (
                 (c.user_low_id = ? AND c.user_high_id = d.user_id) OR

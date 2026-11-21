@@ -619,6 +619,10 @@ button:disabled {
   color: #b65d2c;
   background: #fff0e6;
 }
+.event-custom {
+  color: var(--muted);
+  background: var(--bg);
+}
 .event-training {
   color: #8b5a08;
   background: #fff3dd;
@@ -804,7 +808,7 @@ button:disabled {
 }
 .duty-tabs {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin: 7px 0 24px;
   overflow-x: auto;

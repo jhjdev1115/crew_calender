@@ -15,6 +15,7 @@ type DutyInput = {
   layoverCity?: string;
   hotelName?: string;
   note?: string;
+  title?: string;
 };
 
 const allowed = new Set([
@@ -24,6 +25,7 @@ const allowed = new Set([
   "layover",
   "training",
   "leave",
+  "custom",
 ]);
 const allDay = new Set(["off", "leave"]);
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
@@ -127,14 +129,20 @@ export async function POST(request: Request) {
         { error: "체류 도시를 입력해주세요." },
         { status: 422 },
       );
+    const title = type === "custom" ? (body.title?.trim() ?? "") : null;
+    if (title !== null && (!title || title.length > 20))
+      return Response.json(
+        { error: "일정 이름을 20자 이내로 입력해주세요." },
+        { status: 422 },
+      );
     const firstDate = isAllDay ? startDate! : startAt!.slice(0, 10);
     const rosterMonth = `${firstDate.slice(0, 7)}-01`;
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
     await context.db
       .prepare(
-        `INSERT INTO duties (id, user_id, type, roster_month, start_date, end_date, start_at, end_at, event_tz, flight_no, dep_airport, arr_airport, aircraft, layover_city, hotel_name, note, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO duties (id, user_id, type, roster_month, start_date, end_date, start_at, end_at, event_tz, flight_no, dep_airport, arr_airport, aircraft, layover_city, hotel_name, note, title, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -153,6 +161,7 @@ export async function POST(request: Request) {
         body.layoverCity?.trim() || null,
         body.hotelName?.trim() || null,
         body.note?.trim() || null,
+        title,
         now,
         now,
       )

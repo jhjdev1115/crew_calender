@@ -64,6 +64,7 @@ export const duties = sqliteTable(
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
     deletedAt: text("deleted_at"),
+    title: text("title"),
   },
   (table) => [
     index("idx_duties_user_roster").on(table.userId, table.rosterMonth),
